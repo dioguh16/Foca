@@ -8,7 +8,10 @@ const STORAGE = {
   habits: 'tracker_habits',
   habitLog: 'tracker_habitlog',
   todos: 'tracker_todos',
-  order: 'tracker_order'
+  order: 'tracker_order',
+  profile: 'tracker_profile',
+  weights: 'tracker_weights',
+  insights: 'tracker_insights'
 };
 
 const DEFAULT_HABITS = [
@@ -37,6 +40,8 @@ let exerciseUnitDraft = 'min'; // estado transitório do formulário de adiciona
 let currentCategory = 'sono';  // estado do Histórico
 let currentView = 'week';
 let monthOffset = 0;           // 0 = mês atual, -1 = mês anterior, etc.
+let insightRange = 7;          // dias, para o pedido de insight
+const DATA_TYPE_LABELS = { sono:'Sono', alimentacao:'Alimentação', exercicio:'Exercício', mood:'Mood', cansaco:'Cansaço', peso:'Peso', habitos:'Hábitos', todos:"To Do's" };
 const CAT_LABELS = { sono: 'Sono', mood: 'Mood', cansaco: 'Cansaço', exercicio: 'Exercício' };
 const WEEKDAY_LETTER = ['D','S','T','Q','Q','S','S'];
 
@@ -69,6 +74,12 @@ function getOrder() {
 }
 function getHabitLog() { return loadJSON(STORAGE.habitLog, {}); }
 function getEntries() { return loadJSON(STORAGE.entries, {}); }
+function getProfile() { return loadJSON(STORAGE.profile, { name: '', sex: '', height: '', notes: '' }); }
+function saveProfile(p) { saveJSON(STORAGE.profile, p); }
+function getWeights() { return loadJSON(STORAGE.weights, []); }
+function saveWeights(w) { saveJSON(STORAGE.weights, w); }
+function getInsights() { return loadJSON(STORAGE.insights, []); }
+function saveInsights(list) { saveJSON(STORAGE.insights, list); }
 function getEntry(date) {
   const entries = getEntries();
   return entries[date] || { sleepStart: '', sleepEnd: '', sleepQuality: 'ok', meals: [], exercises: [], mood: 'neutro', tiredness: 2 };
@@ -469,6 +480,116 @@ function renderModuleOrderList() {
 }
 
 /* ============================================================
+   RENDER: Definições — perfil
+   ============================================================ */
+function renderProfile() {
+  const p = getProfile();
+  document.getElementById('profile-name').value = p.name || '';
+  document.getElementById('profile-height').value = p.height || '';
+  document.getElementById('profile-notes').value = p.notes || '';
+  document.querySelectorAll('#profile-sex-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.sex === p.sex));
+  renderWeightHistory();
+}
+
+function renderWeightHistory() {
+  const weights = getWeights().slice().sort((a,b) => b.date.localeCompare(a.date));
+  const currentEl = document.getElementById('profile-weight-current');
+  currentEl.textContent = weights.length ? `${weights[0].kg} kg atual` : 'sem registos';
+
+  document.getElementById('weight-history-list').innerHTML = weights.length ? weights.map(w => `
+    <div class="weight-row">
+      <span class="log-date">${formatShortDatePT(w.date)}</span>
+      <span class="tag">${w.kg} kg</span>
+      <button class="del-btn" data-action="del-weight" data-date="${w.date}">×</button>
+    </div>`).join('') : `<p class="empty-note">Ainda não tens registos de peso.</p>`;
+}
+
+/* ============================================================
+   Insights: exportar dados em bruto para ficheiro (Fase 3)
+   ============================================================ */
+function buildDataExport(rangeDays, dataTypes) {
+  const days = getLastNDates(rangeDays);
+  const entries = getEntries();
+  const now = new Date();
+  const lines = [];
+
+  lines.push(`Dados da app Foca — exportado a ${formatShortDatePT(todayKey())}, ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`);
+  lines.push(`Intervalo: últimos ${rangeDays} dias`);
+  lines.push(`Tipos incluídos: ${dataTypes.map(t => DATA_TYPE_LABELS[t]||t).join(', ')}`);
+  lines.push('');
+
+  days.forEach(({ key }) => {
+    const entry = entries[key];
+    const dayLines = [];
+
+    if (dataTypes.includes('sono') && entry && entry.sleepStart && entry.sleepEnd) {
+      dayLines.push(`Sono: ${entry.sleepStart} → ${entry.sleepEnd} (${sleepDuration(entry.sleepStart, entry.sleepEnd)}) · Qualidade: ${QUALITY_LABELS[entry.sleepQuality]||'--'}`);
+    }
+    if (dataTypes.includes('alimentacao') && entry && entry.meals && entry.meals.length) {
+      entry.meals.forEach(m => dayLines.push(`Refeição ${m.time}: ${m.text}`));
+    }
+    if (dataTypes.includes('exercicio') && entry && entry.exercises && entry.exercises.length) {
+      entry.exercises.forEach(ex => dayLines.push(`Exercício: ${ex.name} — ${ex.value} ${ex.unit==='min'?'minutos':'vezes'}`));
+    }
+    if (dataTypes.includes('mood') && entry && entry.mood) {
+      dayLines.push(`Mood: ${MOOD_LABELS[entry.mood]}`);
+    }
+    if (dataTypes.includes('cansaco') && entry && typeof entry.tiredness === 'number') {
+      dayLines.push(`Nível de cansaço: ${entry.tiredness}/5`);
+    }
+    if (dataTypes.includes('habitos')) {
+      const habits = getHabits();
+      const log = getHabitLog()[key] || {};
+      const doneNames = habits.filter(h => log[h.id]).map(h => h.name);
+      if (doneNames.length) dayLines.push(`Hábitos cumpridos: ${doneNames.join(', ')}`);
+    }
+    if (dataTypes.includes('todos')) {
+      getTodos().filter(t => t.date === key).forEach(t => dayLines.push(`To-do: ${t.text} — ${t.done ? 'concluído' : 'pendente'}`));
+    }
+
+    lines.push(`--- ${key} ---`);
+    lines.push(dayLines.length ? dayLines.join('\n') : '(sem dados)');
+    lines.push('');
+  });
+
+  if (dataTypes.includes('peso')) {
+    const weights = getWeights().filter(w => days.some(d => d.key === w.date)).sort((a,b) => a.date.localeCompare(b.date));
+    lines.push('--- Peso registado no período ---');
+    lines.push(weights.length ? weights.map(w => `${w.date}: ${w.kg} kg`).join('\n') : '(sem registos)');
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+function exportDataFile() {
+  const checked = Array.from(document.querySelectorAll('#insight-check-list input:checked')).map(i => i.value);
+  if (!checked.length) { showToast('Escolhe pelo menos um tipo de dados'); return; }
+
+  const text = buildDataExport(insightRange, checked);
+  const filename = `foca-dados-${todayKey()}.txt`;
+
+  // no telemóvel, tenta abrir logo o menu de partilha (para escolheres a app de IA diretamente)
+  try {
+    const file = new File([text], filename, { type: 'text/plain' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Dados do Foca' }).catch(() => {});
+      return;
+    }
+  } catch (e) { /* File/partilha de ficheiros não suportada — cai para o download normal */ }
+
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Ficheiro descarregado');
+}
+
+/* ============================================================
    NAVEGAÇÃO
    ============================================================ */
 function goToScreen(id) {
@@ -480,7 +601,7 @@ function goToScreen(id) {
   if (id === 'screen-registo') renderRegisto();
   if (id === 'screen-historico') renderHistory();
   if (id === 'screen-habitos') { renderHabitsEditList(); renderTodosEditList(); }
-  if (id === 'screen-settings') renderModuleOrderList();
+  if (id === 'screen-settings') { renderModuleOrderList(); renderProfile(); }
 }
 
 /* ============================================================
@@ -501,6 +622,70 @@ document.addEventListener('click', (e) => {
   document.getElementById('sub-habitos').style.display = sub === 'habitos' ? 'block' : 'none';
   document.getElementById('sub-todos').style.display = sub === 'todos' ? 'block' : 'none';
 });
+
+// chips de sub-navegação das Definições (Módulos/Perfil)
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('#screen-settings .chip[data-sub]');
+  if (!chip) return;
+  document.querySelectorAll('#screen-settings .chip[data-sub]').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  const sub = chip.dataset.sub;
+  document.getElementById('sub-modulos').style.display = sub === 'modulos' ? 'block' : 'none';
+  document.getElementById('sub-perfil').style.display = sub === 'perfil' ? 'block' : 'none';
+});
+
+// ---- Perfil: nome, altura, notas ----
+function persistProfileField(field, value) {
+  const p = getProfile();
+  p[field] = value;
+  saveProfile(p);
+}
+document.getElementById('profile-name').addEventListener('change', (e) => persistProfileField('name', e.target.value));
+document.getElementById('profile-height').addEventListener('change', (e) => persistProfileField('height', e.target.value));
+document.getElementById('profile-notes').addEventListener('change', (e) => persistProfileField('notes', e.target.value));
+
+// ---- Perfil: sexo ----
+document.getElementById('profile-sex-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#profile-sex-chips .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  persistProfileField('sex', chip.dataset.sex);
+});
+
+// ---- Perfil: peso ----
+document.getElementById('add-weight-btn').addEventListener('click', () => {
+  const dateInput = document.getElementById('weight-date-input');
+  const valueInput = document.getElementById('weight-value-input');
+  const kg = parseFloat(valueInput.value);
+  if (!kg) { valueInput.focus(); return; }
+  const date = dateInput.value || todayKey();
+  const weights = getWeights().filter(w => w.date !== date); // um registo por dia — substitui se já existir
+  weights.push({ date, kg });
+  saveWeights(weights);
+  dateInput.value = '';
+  valueInput.value = '';
+  renderWeightHistory();
+  showToast('Peso registado');
+});
+document.getElementById('weight-history-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="del-weight"]');
+  if (!btn) return;
+  saveWeights(getWeights().filter(w => w.date !== btn.dataset.date));
+  renderWeightHistory();
+});
+
+// ---- Insights: intervalo de tempo ----
+document.getElementById('insight-range-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#insight-range-chips .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  insightRange = parseInt(chip.dataset.range, 10);
+});
+
+// ---- Insights: gerar ficheiro para exportar ----
+document.getElementById('generate-file-btn').addEventListener('click', exportDataFile);
 
 // ações dentro do Registo (delegação)
 document.getElementById('registo-modules').addEventListener('click', (e) => {

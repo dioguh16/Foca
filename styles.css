@@ -292,6 +292,32 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 .log-date{color:var(--ink-soft);flex-shrink:0;}
 .tag{background:var(--surface);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;}
 
+/* --- insights --- */
+.insight-check-list{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;}
+.insight-check-item{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);font-weight:600;}
+.insight-check-item input{width:16px;height:16px;accent-color:var(--accent);}
+
+.insight-bubble{
+  background:var(--accent-soft);
+  border-radius:14px;
+  padding:12px 14px;
+  font-size:12.5px;
+  line-height:1.5;
+  color:#284b3f;
+  margin-bottom:10px;
+}
+.insight-bubble b{color:var(--accent);}
+
+.insight-log-item{padding:12px 0;border-bottom:1px solid var(--line);}
+.insight-log-item:last-child{border-bottom:none;padding-bottom:0;}
+.insight-log-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.insight-log-head .log-date{font-size:12px;font-weight:700;color:var(--ink);}
+.insight-log-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;}
+.insight-log-text{font-size:12px;line-height:1.5;color:var(--ink-soft);margin:0;}
+
+.weight-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+.weight-row:last-child{border-bottom:none;}
+
 /* --- navbar --- */
 .navbar{
   flex-shrink:0;display:flex;
