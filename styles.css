@@ -335,6 +335,25 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 .navbtn.active{color:var(--accent);}
 .navbtn.active .ic{background:var(--accent-soft);border-radius:8px;}
 
+/* --- modal: editar registo --- */
+.modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(28,31,30,.5);
+  align-items:flex-end;justify-content:center;z-index:60;
+}
+.modal-overlay.show{display:flex;}
+.modal-sheet{
+  width:100%;max-width:480px;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);
+  max-height:82vh;overflow-y:auto;
+  animation:modal-up .22s ease;
+}
+@keyframes modal-up{from{transform:translateY(24px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.modal-head h3{margin:0;font-size:16px;font-weight:700;}
+.modal-body{margin-bottom:14px;}
+.log-row-tap{cursor:pointer;}
+.log-row-tap:active{opacity:.6;}
+
 /* --- toast --- */
 .toast{
   position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);

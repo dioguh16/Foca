@@ -105,9 +105,22 @@
       <div class="card">
         <h3 id="hist-records-title">Registos recentes</h3>
         <div id="hist-records"></div>
+        <p class="field-note">Toca num registo para o editar.</p>
       </div>
     </div>
   </section>
+
+  <!-- ===================== MODAL: editar registo de um dia ===================== -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h3 id="edit-modal-title">Editar registo</h3>
+        <button class="gear-btn" id="edit-modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="edit-modal-body"></div>
+      <button class="btn-primary" id="edit-modal-save">Guardar alterações</button>
+    </div>
+  </div>
 
   <!-- ===================== INSIGHTS (placeholder — fase 3) ===================== -->
   <section class="screen" id="screen-insights">

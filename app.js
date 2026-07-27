@@ -37,6 +37,10 @@ const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quint
 const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
 let exerciseUnitDraft = 'min'; // estado transitório do formulário de adicionar exercício (não persistido)
+let editModalDate = null;      // data (YYYY-MM-DD) do registo aberto no modal de edição do Histórico
+let editModalCat = null;       // categoria aberta no modal ('sono' | 'mood' | 'cansaco' | 'exercicio')
+let editDraftEntry = null;     // cópia de trabalho do entry enquanto o modal está aberto
+let editExerciseUnit = 'min';  // unidade transitória do form de exercício dentro do modal
 let currentCategory = 'sono';  // estado do Histórico
 let currentView = 'week';
 let monthOffset = 0;           // 0 = mês atual, -1 = mês anterior, etc.
@@ -424,16 +428,16 @@ function renderHistRecords() {
 
     if (currentCategory === 'sono' && entry && entry.sleepStart && entry.sleepEnd) {
       const color = QUALITY_COLORS[entry.sleepQuality] || '#999';
-      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${sleepDuration(entry.sleepStart, entry.sleepEnd)} · ${QUALITY_LABELS[entry.sleepQuality]||'--'}</span></div>`);
+      rows.push(`<div class="log-row log-row-tap" data-date="${key}"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${sleepDuration(entry.sleepStart, entry.sleepEnd)} · ${QUALITY_LABELS[entry.sleepQuality]||'--'}</span></div>`);
     } else if (currentCategory === 'mood' && entry && entry.mood) {
       const color = MOOD_COLORS[entry.mood];
-      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${MOOD_LABELS[entry.mood]}</span></div>`);
+      rows.push(`<div class="log-row log-row-tap" data-date="${key}"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${MOOD_LABELS[entry.mood]}</span></div>`);
     } else if (currentCategory === 'cansaco' && entry && typeof entry.tiredness === 'number') {
       const color = TIRED_COLORS[entry.tiredness];
-      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">Nível ${entry.tiredness}</span></div>`);
+      rows.push(`<div class="log-row log-row-tap" data-date="${key}"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">Nível ${entry.tiredness}</span></div>`);
     } else if (currentCategory === 'exercicio' && entry && entry.exercises && entry.exercises.length) {
       const label = entry.exercises.map(ex => `${ex.name} ${ex.value}${ex.unit==='min'?'min':'x'}`).join(', ');
-      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag">${escapeHtml(label)}</span></div>`);
+      rows.push(`<div class="log-row log-row-tap" data-date="${key}"><span class="log-date">${dateLabel}</span><span class="tag">${escapeHtml(label)}</span></div>`);
     }
   });
 
@@ -441,6 +445,116 @@ function renderHistRecords() {
     ? rows.join('')
     : `<p class="empty-note">Sem registos nos últimos 7 dias para esta categoria.</p>`;
 }
+
+/* ============================================================
+   MODAL: editar registo antigo (a partir do Histórico)
+   ============================================================ */
+function openEditModal(date, cat) {
+  editModalDate = date;
+  editModalCat = cat;
+  editDraftEntry = getEntry(date);
+  editExerciseUnit = 'min';
+  document.getElementById('edit-modal-title').textContent = CAT_LABELS[cat] + ' · ' + formatShortDatePT(date);
+  renderEditModalBody();
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('show');
+  editModalDate = null;
+  editModalCat = null;
+  editDraftEntry = null;
+}
+
+function renderEditModalBody() {
+  const entry = editDraftEntry;
+  const body = document.getElementById('edit-modal-body');
+  if (editModalCat === 'sono') {
+    body.innerHTML = renderSleepModule(entry).replace('<div class="card drag-card" data-module="sleep">', '<div>').replace(/<div class="card-head">.*?<\/div>/, '');
+  } else if (editModalCat === 'mood') {
+    body.innerHTML = renderMoodModule(entry).replace('<div class="card drag-card" data-module="mood">', '<div>').replace(/<div class="card-head">.*?<\/div>/, '');
+  } else if (editModalCat === 'cansaco') {
+    body.innerHTML = renderTirednessModule(entry).replace('<div class="card drag-card" data-module="tiredness">', '<div>').replace(/<div class="card-head">.*?<\/div>/, '');
+  } else if (editModalCat === 'exercicio') {
+    const exercises = entry.exercises || [];
+    const rows = exercises.map((ex, i) => `
+      <div class="exercise-entry">
+        <span>${escapeHtml(ex.name)} · ${escapeHtml(ex.value)} ${ex.unit === 'min' ? 'min' : 'vezes'}</span>
+        <button class="meal-del" data-action="edit-del-exercise" data-idx="${i}">×</button>
+      </div>`).join('');
+    body.innerHTML = `<div>
+      ${rows}
+      <input class="text-input" id="edit-exercise-name-input" placeholder="Que exercício fizeste?" style="margin-top:${exercises.length?'10px':'0'};">
+      <div class="exercise-row">
+        <input class="text-input" id="edit-exercise-value-input" placeholder="Minutos ou nº de vezes">
+        <div class="toggle">
+          <div class="toggle-opt ${editExerciseUnit==='min'?'active':''}" data-action="edit-toggle-unit" data-unit="min">Minutos</div>
+          <div class="toggle-opt ${editExerciseUnit==='vezes'?'active':''}" data-action="edit-toggle-unit" data-unit="vezes">Vezes</div>
+        </div>
+      </div>
+      <button class="btn-add" data-action="edit-add-exercise">+ Adicionar atividade</button>
+    </div>`;
+  }
+}
+
+document.getElementById('hist-records').addEventListener('click', (e) => {
+  const row = e.target.closest('.log-row-tap');
+  if (!row) return;
+  openEditModal(row.dataset.date, currentCategory);
+});
+
+document.getElementById('edit-modal-close').addEventListener('click', closeEditModal);
+document.getElementById('edit-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'edit-modal') closeEditModal();
+});
+
+document.getElementById('edit-modal-body').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+
+  if (action === 'set-quality') { editDraftEntry.sleepQuality = btn.dataset.value; renderEditModalBody(); return; }
+  if (action === 'set-mood') { editDraftEntry.mood = btn.dataset.value; renderEditModalBody(); return; }
+  if (action === 'set-tired') { editDraftEntry.tiredness = parseInt(btn.dataset.value, 10); renderEditModalBody(); return; }
+
+  if (action === 'edit-toggle-unit') {
+    editExerciseUnit = btn.dataset.unit;
+    btn.parentElement.querySelectorAll('.toggle-opt').forEach(o => o.classList.remove('active'));
+    btn.classList.add('active');
+    return;
+  }
+  if (action === 'edit-del-exercise') {
+    editDraftEntry.exercises.splice(parseInt(btn.dataset.idx, 10), 1);
+    renderEditModalBody();
+    return;
+  }
+  if (action === 'edit-add-exercise') {
+    const nameInput = document.getElementById('edit-exercise-name-input');
+    const valInput = document.getElementById('edit-exercise-value-input');
+    if (!nameInput.value.trim() || !valInput.value.trim()) return;
+    editDraftEntry.exercises = editDraftEntry.exercises || [];
+    editDraftEntry.exercises.push({ name: nameInput.value.trim(), unit: editExerciseUnit, value: valInput.value.trim() });
+    editExerciseUnit = 'min';
+    renderEditModalBody();
+    return;
+  }
+});
+
+document.getElementById('edit-modal-body').addEventListener('change', (e) => {
+  const field = e.target.dataset && e.target.dataset.field;
+  if (field === 'sleepStart' || field === 'sleepEnd') {
+    editDraftEntry[field] = e.target.value;
+    renderEditModalBody();
+  }
+});
+
+document.getElementById('edit-modal-save').addEventListener('click', () => {
+  if (!editModalDate) return;
+  saveEntry(editModalDate, editDraftEntry);
+  showToast('Registo atualizado');
+  closeEditModal();
+  renderHistory();
+});
 
 /* ============================================================
    RENDER: separador Hábitos & To Do's (edição)
