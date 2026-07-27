@@ -1,6 +1,6 @@
 {
-  "name": "Tracker Diário",
-  "short_name": "Tracker",
+  "name": "Foca",
+  "short_name": "Foca",
   "description": "Registo diário de sono, alimentação, exercício, mood, cansaço, hábitos e to-do's, com insights de IA.",
   "start_url": "./index.html",
   "scope": "./",

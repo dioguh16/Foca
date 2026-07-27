@@ -34,6 +34,11 @@ const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quint
 const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
 let exerciseUnitDraft = 'min'; // estado transitório do formulário de adicionar exercício (não persistido)
+let currentCategory = 'sono';  // estado do Histórico
+let currentView = 'week';
+let monthOffset = 0;           // 0 = mês atual, -1 = mês anterior, etc.
+const CAT_LABELS = { sono: 'Sono', mood: 'Mood', cansaco: 'Cansaço', exercicio: 'Exercício' };
+const WEEKDAY_LETTER = ['D','S','T','Q','Q','S','S'];
 
 /* ---------------- storage helpers ---------------- */
 function loadJSON(key, fallback) {
@@ -94,6 +99,33 @@ function sleepDuration(start, end) {
   if (diff <= 0) diff += 24*60;
   const h = Math.floor(diff/60), m = diff%60;
   return `${h}h${String(m).padStart(2,'0')}`;
+}
+function sleepMinutes(start, end) {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  let diff = (eh*60+em) - (sh*60+sm);
+  if (diff <= 0) diff += 24*60;
+  return diff;
+}
+function exerciseScorePct(entry) {
+  if (!entry || !entry.exercises || !entry.exercises.length) return 0;
+  let totalMin = 0;
+  entry.exercises.forEach(ex => {
+    const v = parseFloat(ex.value) || 0;
+    totalMin += ex.unit === 'min' ? v : v * 8; // aproximação: cada "vez" conta como ~8min de esforço
+  });
+  return Math.max(0, Math.min(100, Math.round((totalMin/90)*100)));
+}
+function getLastNDates(n) {
+  const arr = [];
+  const base = new Date();
+  for (let i = n-1; i >= 0; i--) {
+    const dt = new Date(base);
+    dt.setDate(base.getDate()-i);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    arr.push({ key, dateObj: dt });
+  }
+  return arr;
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -276,6 +308,130 @@ function renderRegisto() {
 }
 
 /* ============================================================
+   RENDER: Histórico (Fase 2)
+   ============================================================ */
+function renderHistory() {
+  document.getElementById('hist-records-title').textContent = 'Registos recentes · ' + CAT_LABELS[currentCategory];
+  if (currentView === 'week') renderHistWeek(); else renderHistMonth();
+  renderHistRecords();
+}
+
+function renderHistWeek() {
+  const days = getLastNDates(7);
+  const entries = getEntries();
+  const titleEl = document.getElementById('hist-week-title');
+  let bars = '', labels = '';
+
+  days.forEach(({ key, dateObj }) => {
+    const entry = entries[key];
+    labels += `<span>${WEEKDAY_LETTER[dateObj.getDay()]}</span>`;
+
+    if (currentCategory === 'sono') {
+      titleEl.textContent = 'Sono · últimas 7 noites';
+      if (entry && entry.sleepStart && entry.sleepEnd) {
+        const mins = sleepMinutes(entry.sleepStart, entry.sleepEnd);
+        const pct = Math.max(6, Math.min(100, Math.round((mins/540)*100)));
+        const color = QUALITY_COLORS[entry.sleepQuality] || '#ccc';
+        bars += `<div class="bar" style="height:${pct}%;background:${color};"></div>`;
+      } else {
+        bars += `<div class="bar" style="height:6%;"></div>`;
+      }
+    } else if (currentCategory === 'mood') {
+      titleEl.textContent = 'Mood · últimos 7 dias';
+      if (entry && entry.mood) {
+        const heightMap = { muitomau:20, mau:40, neutro:60, bom:80, excelente:100 };
+        bars += `<div class="bar" style="height:${heightMap[entry.mood]}%;background:${MOOD_COLORS[entry.mood]};"></div>`;
+      } else {
+        bars += `<div class="bar" style="height:6%;"></div>`;
+      }
+    } else if (currentCategory === 'cansaco') {
+      titleEl.textContent = 'Nível de cansaço · últimos 7 dias';
+      if (entry && typeof entry.tiredness === 'number') {
+        const pct = Math.max(12, Math.round((entry.tiredness/5)*100));
+        bars += `<div class="bar" style="height:${pct}%;background:${TIRED_COLORS[entry.tiredness]};"></div>`;
+      } else {
+        bars += `<div class="bar" style="height:6%;"></div>`;
+      }
+    } else {
+      titleEl.textContent = 'Exercício · últimos 7 dias';
+      const pct = exerciseScorePct(entry);
+      bars += `<div class="bar" style="height:${Math.max(6,pct)}%;background:var(--accent);opacity:${pct>0?1:.3};"></div>`;
+    }
+  });
+
+  document.getElementById('hist-bars').innerHTML = bars;
+  document.getElementById('hist-bars-labels').innerHTML = labels;
+}
+
+function renderHistMonth() {
+  const now = new Date();
+  const viewDate = new Date(now.getFullYear(), now.getMonth()+monthOffset, 1);
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const label = MONTHS_FULL[month];
+  document.getElementById('month-label').textContent = `${label.charAt(0).toUpperCase()+label.slice(1)} ${year}`;
+  document.getElementById('month-next').disabled = monthOffset >= 0;
+
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const entries = getEntries();
+  const todayStr = todayKey();
+
+  let html = '';
+  for (let i = 0; i < firstWeekday; i++) html += '<div class="cal-day empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const entry = entries[key];
+    const todayClass = key === todayStr ? ' today-outline' : '';
+
+    if (currentCategory === 'exercicio') {
+      const has = entry && entry.exercises && entry.exercises.length > 0;
+      html += `<div class="cal-day${todayClass}">${d}${has ? '<span class="ex-dot"></span>' : ''}</div>`;
+    } else {
+      let color = null;
+      if (currentCategory === 'sono' && entry && entry.sleepQuality) color = QUALITY_COLORS[entry.sleepQuality];
+      else if (currentCategory === 'mood' && entry && entry.mood) color = MOOD_COLORS[entry.mood];
+      else if (currentCategory === 'cansaco' && entry && typeof entry.tiredness === 'number') color = TIRED_COLORS[entry.tiredness];
+
+      if (color) {
+        html += `<div class="cal-day${todayClass}" style="background:${color}33;color:${color};border:1px solid ${color}66;">${d}</div>`;
+      } else {
+        html += `<div class="cal-day${todayClass}">${d}</div>`;
+      }
+    }
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function renderHistRecords() {
+  const days = getLastNDates(7).slice().reverse();
+  const entries = getEntries();
+  const rows = [];
+
+  days.forEach(({ key }) => {
+    const entry = entries[key];
+    const dateLabel = formatShortDatePT(key);
+
+    if (currentCategory === 'sono' && entry && entry.sleepStart && entry.sleepEnd) {
+      const color = QUALITY_COLORS[entry.sleepQuality] || '#999';
+      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${sleepDuration(entry.sleepStart, entry.sleepEnd)} · ${QUALITY_LABELS[entry.sleepQuality]||'--'}</span></div>`);
+    } else if (currentCategory === 'mood' && entry && entry.mood) {
+      const color = MOOD_COLORS[entry.mood];
+      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">${MOOD_LABELS[entry.mood]}</span></div>`);
+    } else if (currentCategory === 'cansaco' && entry && typeof entry.tiredness === 'number') {
+      const color = TIRED_COLORS[entry.tiredness];
+      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag" style="background:${color}22;color:${color};">Nível ${entry.tiredness}</span></div>`);
+    } else if (currentCategory === 'exercicio' && entry && entry.exercises && entry.exercises.length) {
+      const label = entry.exercises.map(ex => `${ex.name} ${ex.value}${ex.unit==='min'?'min':'x'}`).join(', ');
+      rows.push(`<div class="log-row"><span class="log-date">${dateLabel}</span><span class="tag">${escapeHtml(label)}</span></div>`);
+    }
+  });
+
+  document.getElementById('hist-records').innerHTML = rows.length
+    ? rows.join('')
+    : `<p class="empty-note">Sem registos nos últimos 7 dias para esta categoria.</p>`;
+}
+
+/* ============================================================
    RENDER: separador Hábitos & To Do's (edição)
    ============================================================ */
 function renderHabitsEditList() {
@@ -322,6 +478,7 @@ function goToScreen(id) {
   document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.goto === id));
 
   if (id === 'screen-registo') renderRegisto();
+  if (id === 'screen-historico') renderHistory();
   if (id === 'screen-habitos') { renderHabitsEditList(); renderTodosEditList(); }
   if (id === 'screen-settings') renderModuleOrderList();
 }
@@ -500,6 +657,30 @@ function addTodo() {
   showToast('To-do adicionado');
 }
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
+
+// Histórico: chips de categoria
+document.getElementById('hist-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.querySelectorAll('#hist-chips .chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  currentCategory = chip.dataset.cat;
+  renderHistory();
+});
+
+// Histórico: alternar semana/mês
+document.getElementById('hist-view-toggle').addEventListener('click', () => {
+  currentView = currentView === 'week' ? 'month' : 'week';
+  document.getElementById('hist-week-view').style.display = currentView === 'week' ? 'block' : 'none';
+  document.getElementById('hist-month-view').style.display = currentView === 'month' ? 'block' : 'none';
+  document.getElementById('hist-view-toggle').textContent = currentView === 'week' ? '📅' : '📊';
+  document.getElementById('hist-subtitle').textContent = currentView === 'week' ? 'Vista semanal' : 'Vista mensal';
+  renderHistory();
+});
+
+// Histórico: navegação entre meses
+document.getElementById('month-prev').addEventListener('click', () => { monthOffset--; renderHistMonth(); });
+document.getElementById('month-next').addEventListener('click', () => { monthOffset = Math.min(0, monthOffset+1); renderHistMonth(); });
 
 // reordenar módulos (Definições)
 document.getElementById('module-order-list').addEventListener('click', (e) => {

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1c1f1e">
-<title>Tracker Diário</title>
+<title>Foca</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -65,14 +65,46 @@
 
   <!-- ===================== HISTÓRICO (placeholder — fase 2) ===================== -->
   <section class="screen" id="screen-historico">
-    <div class="topbar">
-      <h1>Histórico</h1>
-      <p>Em construção</p>
+    <div class="topbar topbar-flex">
+      <div>
+        <h1>Histórico</h1>
+        <p id="hist-subtitle">Vista semanal</p>
+      </div>
+      <button class="gear-btn" id="hist-view-toggle">📅</button>
     </div>
     <div class="content">
-      <div class="card soon-card">
-        <h3>🚧 Fase 2</h3>
-        <p class="field-note" style="font-size:12.5px;">A vista semanal/mensal com gráficos e cores vai ficar aqui — os teus registos diários já estão a ser guardados desde já, por isso quando esta secção ficar pronta, os dados de hoje em diante já vão aparecer.</p>
+      <div class="chip-row" id="hist-chips">
+        <div class="chip active" data-cat="sono">Sono</div>
+        <div class="chip" data-cat="mood">Mood</div>
+        <div class="chip" data-cat="cansaco">Cansaço</div>
+        <div class="chip" data-cat="exercicio">Exercício</div>
+      </div>
+
+      <div id="hist-week-view">
+        <div class="card">
+          <h3 id="hist-week-title">Sono · últimas 7 noites</h3>
+          <div class="bars" id="hist-bars"></div>
+          <div class="bars-labels" id="hist-bars-labels"></div>
+        </div>
+      </div>
+
+      <div id="hist-month-view" style="display:none;">
+        <div class="card">
+          <div class="month-nav">
+            <button id="month-prev">‹</button>
+            <span id="month-label"></span>
+            <button id="month-next">›</button>
+          </div>
+          <div class="cal-weekdays">
+            <span>D</span><span>S</span><span>T</span><span>Q</span><span>Q</span><span>S</span><span>S</span>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 id="hist-records-title">Registos recentes</h3>
+        <div id="hist-records"></div>
       </div>
     </div>
   </section>
