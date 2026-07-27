@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="120" fill="#1c1f1e"/>
+
+  <!-- corpo da foca -->
+  <ellipse cx="256" cy="330" rx="130" ry="95" fill="#3a6b5c"/>
+  <!-- cabeça -->
+  <circle cx="256" cy="205" r="92" fill="#3a6b5c"/>
+  <!-- barbatana esquerda -->
+  <ellipse cx="146" cy="300" rx="34" ry="58" fill="#2f5a4d" transform="rotate(-28 146 300)"/>
+  <!-- barbatana direita -->
+  <ellipse cx="366" cy="300" rx="34" ry="58" fill="#2f5a4d" transform="rotate(28 366 300)"/>
+
+  <!-- focinho -->
+  <ellipse cx="256" cy="238" rx="46" ry="34" fill="#e9ede8"/>
+  <ellipse cx="256" cy="248" rx="16" ry="12" fill="#1c1f1e"/>
+
+  <!-- olhos -->
+  <circle cx="222" cy="188" r="10" fill="#1c1f1e"/>
+  <circle cx="290" cy="188" r="10" fill="#1c1f1e"/>
+  <circle cx="225" cy="185" r="3" fill="#fff"/>
+  <circle cx="293" cy="185" r="3" fill="#fff"/>
+
+  <!-- bigodes -->
+  <g stroke="#e9ede8" stroke-width="3" stroke-linecap="round" opacity="0.85">
+    <path d="M214 240 L160 230"/>
+    <path d="M214 250 L158 252"/>
+    <path d="M298 240 L352 230"/>
+    <path d="M298 250 L354 252"/>
+  </g>
+</svg>
