@@ -32,6 +32,32 @@ body{
   display:flex;
   flex-direction:column;
   background:var(--surface);
+  touch-action:pan-y;
+}
+
+.day-nav{display:flex;align-items:center;gap:8px;}
+.day-nav p{margin:0;}
+.day-nav-btn{
+  background:var(--surface-2);
+  border:none;
+  color:var(--ink);
+  width:26px;height:26px;
+  border-radius:8px;
+  font-size:16px;
+  font-weight:700;
+  line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.day-nav-btn:active{opacity:.6;}
+.day-nav-btn:disabled{opacity:.3;}
+.past-day-banner{
+  background:var(--accent-soft);
+  color:var(--accent);
+  font-size:12px;
+  font-weight:600;
+  padding:8px 12px;
+  border-radius:10px;
+  margin:0 16px 12px;
 }
 
 .screen{display:none;flex-direction:column;flex:1;min-height:0;}
@@ -108,6 +134,17 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 .btn-primary{
   width:100%;
   background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:12px;
+  padding:13px;
+  font-size:14px;
+  font-weight:700;
+  margin-top:6px;
+}
+.btn-danger{
+  flex:1;
+  background:#e34b4b;
   color:#fff;
   border:none;
   border-radius:12px;
@@ -363,3 +400,13 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
   z-index:50;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* --- versão da app (Definições) --- */
+.app-version-tag{
+  text-align:right;
+  font-size:11px;
+  font-weight:600;
+  color:var(--muted, #8a8f8d);
+  opacity:.6;
+  margin:18px 4px 6px;
+}

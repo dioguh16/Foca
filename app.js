@@ -3,6 +3,18 @@
    Persistência real via localStorage. Sem build step (JS puro).
    ============================================================ */
 
+/* ------------------------------------------------------------
+   REGRA DE VERSIONAMENTO (instrução permanente do utilizador):
+   - APP_VERSION abaixo tem de ser atualizado sempre que o código
+     desta app for alterado (qualquer fase/sessão).
+   - O número de versão é mostrado nas Definições, em baixo à
+     direita (ver #app-version-tag no index.html / renderVersionTag
+     abaixo).
+   - A pasta entregue ao utilizador com os ficheiros da app deve
+     ter sempre o nome "Foca vX.X" (com este mesmo número).
+   ------------------------------------------------------------ */
+const APP_VERSION = '1.6.0';
+
 const STORAGE = {
   entries: 'tracker_entries',
   habits: 'tracker_habits',
@@ -93,11 +105,40 @@ function saveEntry(date, entry) {
   entries[date] = entry;
   saveJSON(STORAGE.entries, entries);
 }
+function deleteCategoryFromEntry(date, cat) {
+  const entries = getEntries();
+  const entry = entries[date];
+  if (!entry) return;
+  if (cat === 'sono') {
+    entry.sleepStart = '';
+    entry.sleepEnd = '';
+    entry.sleepQuality = 'ok';
+  } else if (cat === 'mood') {
+    entry.mood = '';
+  } else if (cat === 'cansaco') {
+    delete entry.tiredness;
+  } else if (cat === 'exercicio') {
+    entry.exercises = [];
+  }
+  saveJSON(STORAGE.entries, entries);
+}
 
 /* ---------------- utilidades de data ---------------- */
 function todayKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function dateKeyToObj(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function objToDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function shiftDateKey(key, days) {
+  const d = dateKeyToObj(key);
+  d.setDate(d.getDate() + days);
+  return objToDateKey(d);
 }
 function formatDatePT(dateObj) {
   return `${WEEKDAYS[dateObj.getDay()]}, ${dateObj.getDate()} ${MONTHS_FULL[dateObj.getMonth()]}`;
@@ -315,12 +356,41 @@ const MODULE_RENDERERS = {
   tiredness: (entry) => renderTirednessModule(entry)
 };
 
+let currentRegistoDate = todayKey();
+
 function renderRegisto() {
-  document.getElementById('registo-date').textContent = formatDatePT(new Date());
+  const isToday = currentRegistoDate === todayKey();
+  const dateObj = dateKeyToObj(currentRegistoDate);
+  document.getElementById('registo-date').textContent = isToday
+    ? `Hoje, ${dateObj.getDate()} ${MONTHS_FULL[dateObj.getMonth()]}`
+    : formatDatePT(dateObj);
+  document.getElementById('registo-day-next').disabled = isToday;
+
   const order = getOrder();
-  const entry = getEntry(todayKey());
-  document.getElementById('registo-modules').innerHTML = order.map(key => MODULE_RENDERERS[key] ? MODULE_RENDERERS[key](entry) : '').join('');
+  const entry = getEntry(currentRegistoDate);
+  const modulesEl = document.getElementById('registo-modules');
+  modulesEl.innerHTML = order.map(key => MODULE_RENDERERS[key] ? MODULE_RENDERERS[key](entry) : '').join('');
+
+  const bannerId = 'registo-past-banner';
+  document.getElementById(bannerId)?.remove();
+  if (!isToday) {
+    const banner = document.createElement('div');
+    banner.id = bannerId;
+    banner.className = 'past-day-banner';
+    banner.textContent = 'A editar um dia passado — as alterações ficam guardadas nesse dia.';
+    modulesEl.parentElement.insertBefore(banner, modulesEl);
+  }
 }
+
+document.getElementById('registo-day-prev').addEventListener('click', () => {
+  currentRegistoDate = shiftDateKey(currentRegistoDate, -1);
+  renderRegisto();
+});
+document.getElementById('registo-day-next').addEventListener('click', () => {
+  if (currentRegistoDate === todayKey()) return;
+  currentRegistoDate = shiftDateKey(currentRegistoDate, 1);
+  renderRegisto();
+});
 
 /* ============================================================
    RENDER: Histórico (Fase 2)
@@ -556,6 +626,30 @@ document.getElementById('edit-modal-save').addEventListener('click', () => {
   renderHistory();
 });
 
+document.getElementById('edit-modal-delete').addEventListener('click', () => {
+  if (!editModalDate) return;
+  document.getElementById('confirm-delete-text').textContent =
+    `Vais apagar o registo de ${CAT_LABELS[editModalCat]} de ${formatShortDatePT(editModalDate)}. Esta ação não pode ser desfeita.`;
+  document.getElementById('confirm-delete-modal').classList.add('show');
+});
+
+document.getElementById('confirm-delete-cancel').addEventListener('click', () => {
+  document.getElementById('confirm-delete-modal').classList.remove('show');
+});
+document.getElementById('confirm-delete-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'confirm-delete-modal') {
+    document.getElementById('confirm-delete-modal').classList.remove('show');
+  }
+});
+document.getElementById('confirm-delete-confirm').addEventListener('click', () => {
+  if (!editModalDate) return;
+  deleteCategoryFromEntry(editModalDate, editModalCat);
+  showToast('Registo apagado');
+  document.getElementById('confirm-delete-modal').classList.remove('show');
+  closeEditModal();
+  renderHistory();
+});
+
 /* ============================================================
    RENDER: separador Hábitos & To Do's (edição)
    ============================================================ */
@@ -712,11 +806,58 @@ function goToScreen(id) {
   if (target) target.classList.add('active');
   document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.goto === id));
 
-  if (id === 'screen-registo') renderRegisto();
+  if (id === 'screen-registo') { currentRegistoDate = todayKey(); renderRegisto(); }
   if (id === 'screen-historico') renderHistory();
   if (id === 'screen-habitos') { renderHabitsEditList(); renderTodosEditList(); }
   if (id === 'screen-settings') { renderModuleOrderList(); renderProfile(); }
 }
+
+/* ---------------- swipe lateral entre menus ---------------- */
+(function setupSwipeNav() {
+  const shell = document.querySelector('.app-shell');
+  const navOrder = Array.from(document.querySelectorAll('.navbar .navbtn')).map(b => b.dataset.goto);
+  let startX = 0, startY = 0, tracking = false, decided = null;
+  const THRESHOLD = 55;
+
+  function anyModalOpen() {
+    return document.querySelector('.modal-overlay.show') !== null;
+  }
+
+  shell.addEventListener('touchstart', (e) => {
+    if (anyModalOpen() || e.touches.length !== 1) { tracking = false; return; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+    decided = null;
+  }, { passive: true });
+
+  shell.addEventListener('touchmove', (e) => {
+    if (!tracking || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (decided === null && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+      decided = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+    }
+    if (decided === 'horizontal') e.preventDefault();
+  }, { passive: false });
+
+  shell.addEventListener('touchend', (e) => {
+    if (!tracking) return;
+    tracking = false;
+    if (decided !== 'horizontal') return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) < THRESHOLD) return;
+
+    const currentId = document.querySelector('.screen.active').id;
+    const idx = navOrder.indexOf(currentId);
+    if (idx === -1) return;
+
+    // arrastar para a esquerda -> avança; para a direita -> recua
+    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
+    if (nextIdx < 0 || nextIdx >= navOrder.length) return;
+    goToScreen(navOrder[nextIdx]);
+  });
+})();
 
 /* ============================================================
    EVENTOS
@@ -806,7 +947,8 @@ document.getElementById('registo-modules').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
-  const today = todayKey();
+  const today = currentRegistoDate; // dia dos módulos diários: hoje ou um dia passado navegado
+  const habitDay = todayKey(); // hábitos/to-do's continuam sempre ligados ao dia real de hoje
 
   if (action === 'toggle-unit') {
     exerciseUnitDraft = btn.dataset.unit;
@@ -818,8 +960,8 @@ document.getElementById('registo-modules').addEventListener('click', (e) => {
   if (action === 'toggle-habit') {
     const id = btn.dataset.id;
     const log = getHabitLog();
-    log[today] = log[today] || {};
-    log[today][id] = !log[today][id];
+    log[habitDay] = log[habitDay] || {};
+    log[habitDay][id] = !log[habitDay][id];
     saveJSON(STORAGE.habitLog, log);
     renderRegisto();
     return;
@@ -903,7 +1045,7 @@ document.getElementById('registo-modules').addEventListener('click', (e) => {
 document.getElementById('registo-modules').addEventListener('change', (e) => {
   const field = e.target.dataset && e.target.dataset.field;
   if (field === 'sleepStart' || field === 'sleepEnd') {
-    const today = todayKey();
+    const today = currentRegistoDate;
     const entry = getEntry(today);
     entry[field] = e.target.value;
     saveEntry(today, entry);
@@ -998,8 +1140,16 @@ document.getElementById('module-order-list').addEventListener('click', (e) => {
 /* ============================================================
    INIT
    ============================================================ */
+function renderVersionTag() {
+  const el = document.getElementById('app-version-tag');
+  if (!el) return;
+  el.className = 'app-version-tag';
+  el.textContent = 'v' + APP_VERSION;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   renderRegisto();
+  renderVersionTag();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(registration => {
