@@ -410,3 +410,165 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
   opacity:.6;
   margin:18px 4px 6px;
 }
+
+/* ============================================================
+   REGISTO — visual de "folha de caderno"
+   Aplicado só ao ecrã #screen-registo, a pedido do utilizador.
+   Ver comentário equivalente no topo de app.js.
+   ============================================================ */
+#screen-registo{
+  --paper:#fbf7ea;
+  --rule:#c3d6e8;
+  --margin:#e2a3a3;
+  --note-ink:#2b3a67;
+  --note-ink-soft:#5a6690;
+  --note-pencil:#8c8a7e;
+  --note-highlight:#ffe98a;
+  position:relative;
+  background:var(--paper);
+}
+#screen-registo::before{ /* linha vermelha da margem */
+  content:'';
+  position:absolute; left:38px; top:0; bottom:0; width:1.5px;
+  background:var(--margin); opacity:.65; z-index:0; pointer-events:none;
+}
+#screen-registo::after{ /* canto da página dobrado */
+  content:'';
+  position:absolute; top:0; right:0; z-index:2; pointer-events:none;
+  width:0; height:0; border-style:solid; border-width:0 22px 22px 0;
+  border-color:transparent #efe8d2 transparent transparent;
+  filter:drop-shadow(-1px 1px 2px rgba(0,0,0,.12));
+}
+#screen-registo .topbar{
+  background:transparent;
+  border-bottom:none;
+  padding-left:48px;
+  position:relative; z-index:1;
+}
+#screen-registo .content{
+  background:repeating-linear-gradient(to bottom, transparent 0 29px, var(--rule) 29px 30.5px);
+  padding-left:48px;
+  position:relative; z-index:1;
+}
+
+/* eyebrow "registo" e cabeçalhos das secções, em manuscrito */
+#screen-registo .topbar h1{
+  font-family:'Patrick Hand',cursive;
+  font-size:13px; font-weight:400; letter-spacing:.4px;
+  color:var(--note-pencil); text-transform:lowercase;
+  text-decoration:underline wavy var(--note-pencil) 1.5px; text-underline-offset:4px;
+}
+#screen-registo .day-nav{display:flex;align-items:center;gap:10px;}
+#screen-registo .day-nav p{
+  font-family:'Caveat',cursive; font-weight:700; font-size:30px; line-height:1;
+  color:var(--note-ink); margin:4px 0 0; position:relative;
+}
+#screen-registo .day-nav-btn{
+  background:none; color:var(--note-ink-soft); font-family:'Patrick Hand',cursive;
+  font-size:20px; width:auto; height:auto; border-radius:0;
+}
+#screen-registo .card h3, #screen-registo .card-head h3{
+  font-family:'Caveat',cursive; font-weight:700; font-size:22px; color:var(--note-ink);
+}
+#screen-registo .card{
+  background:transparent; border-radius:0; padding:0 0 4px; margin-bottom:22px;
+}
+#screen-registo .pill{
+  background:none; border:none; color:var(--note-pencil);
+  font-family:'Patrick Hand',cursive; font-size:13px; padding:0;
+}
+
+/* texto corrido: sono/refeições/exercício/itens, tudo à mão */
+#screen-registo,
+#screen-registo .text-input,
+#screen-registo .meal-text, #screen-registo .meal-tag,
+#screen-registo .exercise-entry span,
+#screen-registo .item-text, #screen-registo .streak,
+#screen-registo .empty-note, #screen-registo .toggle-opt,
+#screen-registo .sleep-total, #screen-registo .sleep-arrow{
+  font-family:'Patrick Hand',cursive;
+}
+
+/* inputs: linha para escrever, sem caixa */
+#screen-registo .text-input, #screen-registo .time-input{
+  background:transparent; border:none; border-bottom:1.5px dotted var(--note-pencil);
+  border-radius:0; padding:6px 2px; font-size:16px; color:var(--note-ink);
+}
+#screen-registo .text-input::placeholder{ color:var(--note-pencil); font-style:italic; opacity:.8; }
+#screen-registo .sleep-total{ color:var(--note-pencil); font-size:14px; }
+
+/* botão "+" tracejado, como uma anotação por fazer */
+#screen-registo .btn-add{
+  background:none; border:none; text-align:left; padding:8px 2px 0;
+  font-family:'Patrick Hand',cursive; font-size:15px; color:var(--note-ink-soft);
+}
+
+/* linhas de refeição/exercício sem separadores — já há pauta a separar */
+#screen-registo .meal-entry, #screen-registo .exercise-entry{
+  border-bottom:none; padding:5px 0; font-size:16px; color:var(--note-ink-soft);
+}
+#screen-registo .meal-tag{ color:var(--note-pencil); font-weight:400; }
+#screen-registo .meal-del, #screen-registo .exercise-entry .meal-del{
+  color:var(--note-pencil); font-family:'Patrick Hand',cursive; font-size:16px;
+}
+
+/* qualidade do sono / mood: palavra circundada à mão em vez de chip colorido */
+#screen-registo .chip, #screen-registo .tier{
+  background:transparent !important; border:none !important;
+  color:var(--note-ink-soft) !important; font-family:'Patrick Hand',cursive;
+  font-size:15px; font-weight:400; border-radius:0; padding:5px 9px;
+  position:relative;
+}
+#screen-registo .chip.active, #screen-registo .tier.active{
+  color:var(--note-ink) !important;
+}
+#screen-registo .chip.active::before, #screen-registo .tier.active::before{
+  content:''; position:absolute; left:-4px; right:-4px; top:-4px; bottom:-4px;
+  border:2px solid var(--note-ink);
+  border-radius:52% 48% 55% 45% / 60% 55% 45% 50%;
+  transform:rotate(-2deg);
+}
+
+/* cansaço: mesma lógica, círculo à mão à volta do número escolhido */
+#screen-registo .scale-dot{
+  background:transparent !important; border:none !important;
+  color:var(--note-ink-soft) !important; font-family:'Patrick Hand',cursive;
+  font-size:15px; font-weight:400; border-radius:0; position:relative;
+}
+#screen-registo .scale-dot.active{ color:var(--note-ink) !important; }
+#screen-registo .scale-dot.active::before{
+  content:''; position:absolute; inset:-3px;
+  border:2px solid var(--note-ink); border-radius:50%; transform:rotate(-3deg);
+}
+#screen-registo .scale-caption{ font-family:'Patrick Hand',cursive; color:var(--note-pencil); }
+
+/* seletor minutos/vezes do exercício: sublinhado em vez de segmento cheio */
+#screen-registo .toggle{ background:none; border:none; gap:12px; }
+#screen-registo .toggle-opt{
+  padding:6px 0; color:var(--note-pencil); font-size:14px;
+}
+#screen-registo .toggle-opt.active{
+  background:none; color:var(--note-ink);
+  text-decoration:underline solid var(--note-ink) 2px; text-underline-offset:4px;
+}
+
+/* hábitos de hoje: caixinha desenhada à mão, com o visto a "escrever-se" */
+#screen-registo .habit-item{
+  border-bottom:none; padding:9px 0; font-size:16px; color:var(--note-ink);
+}
+#screen-registo .streak{ color:var(--note-pencil); font-weight:400; }
+#screen-registo .habit-item.done .item-text{
+  color:var(--note-pencil); text-decoration:line-through wavy var(--note-pencil) 1.5px;
+}
+#screen-registo .check-btn{
+  width:22px; height:22px; border-radius:4px;
+  border:2px solid var(--note-ink-soft); background:transparent;
+  transform:rotate(-1.5deg);
+}
+#screen-registo .check-btn::before{ display:none; } /* sem preenchimento circular */
+#screen-registo .check-btn .check-mark{
+  font-family:'Patrick Hand',cursive; font-size:15px; color:var(--note-ink);
+  transform:scale(.4) rotate(-16deg);
+}
+#screen-registo .check-btn.checked{ border-color:var(--note-ink); }
+#screen-registo .check-btn.checked .check-mark{ transform:scale(1.15) rotate(-4deg); }

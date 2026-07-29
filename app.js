@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 const STORAGE = {
   entries: 'tracker_entries',
@@ -112,7 +112,7 @@ function deleteCategoryFromEntry(date, cat) {
   if (cat === 'sono') {
     entry.sleepStart = '';
     entry.sleepEnd = '';
-    entry.sleepQuality = 'ok';
+    entry.sleepQuality = '';
   } else if (cat === 'mood') {
     entry.mood = '';
   } else if (cat === 'cansaco') {
