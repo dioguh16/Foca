@@ -189,6 +189,7 @@
       <div class="chip-row">
         <div class="chip active" data-sub="modulos">Módulos</div>
         <div class="chip" data-sub="perfil">Perfil</div>
+        <div class="chip" data-sub="backup">Backup</div>
       </div>
 
       <div id="sub-modulos">
@@ -228,6 +229,19 @@
           <h3>Notas para os Insights</h3>
           <textarea class="text-input" id="profile-notes" placeholder="Ex: costumo trabalhar por turnos rotativos..."></textarea>
           <p class="field-note">Contexto que a IA usa para interpretar melhor os teus padrões.</p>
+        </div>
+      </div>
+
+      <div id="sub-backup" style="display:none;">
+        <div class="card">
+          <div class="card-head"><h3>Backup</h3></div>
+          <div class="row" style="margin-bottom:10px;">
+            <span style="font-size:13px;color:var(--ink);">Backup semanal automático</span>
+            <button class="switch" id="backup-weekly-toggle" data-action="toggle-backup-weekly"><span class="switch-knob"></span></button>
+          </div>
+          <p class="field-note" style="margin-bottom:14px;">Enquanto estiver ligado, sempre que abrires a app e já tiver passado uma semana desde o último backup, é feito um novo automaticamente.</p>
+          <button class="btn-add" id="backup-now-btn">Fazer backup agora</button>
+          <p class="field-note" id="backup-last-info" style="margin-top:10px;"></p>
         </div>
       </div>
 

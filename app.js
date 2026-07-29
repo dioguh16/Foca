@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.10.0';
 
 const STORAGE = {
   entries: 'tracker_entries',
@@ -23,7 +23,9 @@ const STORAGE = {
   order: 'tracker_order',
   profile: 'tracker_profile',
   weights: 'tracker_weights',
-  insights: 'tracker_insights'
+  insights: 'tracker_insights',
+  backupWeekly: 'tracker_backup_weekly_enabled',
+  backupLastAt: 'tracker_backup_last_at'
 };
 
 const DEFAULT_HABITS = [
@@ -32,10 +34,10 @@ const DEFAULT_HABITS = [
   { id: 'h3', name: 'Beber 1.5L de água' },
   { id: 'h4', name: 'Escovar os dentes (noite)' }
 ];
-const DEFAULT_ORDER = ['habits', 'todos', 'sleep', 'food', 'exercise', 'mood', 'tiredness'];
+const DEFAULT_ORDER = ['habits', 'todos', 'sleep', 'food', 'exercise', 'mood', 'tiredness', 'notes'];
 const MODULE_LABELS = {
   habits: 'Hábitos', todos: "To Do's", sleep: 'Sono', food: 'Alimentação',
-  exercise: 'Exercício', mood: 'Mood', tiredness: 'Nível de cansaço'
+  exercise: 'Exercício', mood: 'Mood', tiredness: 'Nível de cansaço', notes: 'Notas'
 };
 
 const QUALITY_COLORS = { ma: '#d1554a', ok: '#dfc24a', boa: '#3f8f5f' };
@@ -98,7 +100,7 @@ function getInsights() { return loadJSON(STORAGE.insights, []); }
 function saveInsights(list) { saveJSON(STORAGE.insights, list); }
 function getEntry(date) {
   const entries = getEntries();
-  return entries[date] || { sleepStart: '', sleepEnd: '', sleepQuality: 'ok', meals: [], exercises: [], mood: 'neutro', tiredness: 2 };
+  return entries[date] || { sleepStart: '', sleepEnd: '', sleepQuality: 'ok', meals: [], exercises: [], mood: 'neutro', tiredness: 2, notes: '' };
 }
 function saveEntry(date, entry) {
   const entries = getEntries();
@@ -346,6 +348,13 @@ function renderTirednessModule(entry) {
   </div>`;
 }
 
+function renderNotesModule(entry) {
+  return `<div class="card drag-card" data-module="notes">
+    <div class="card-head"><h3>Notas</h3></div>
+    <textarea class="text-input" id="notes-input" data-field="notes" placeholder="Escreve aqui o que quiseres sobre o teu dia...">${escapeHtml(entry.notes || '')}</textarea>
+  </div>`;
+}
+
 const MODULE_RENDERERS = {
   habits: () => renderHabitsModule(),
   todos: () => renderTodosModule(),
@@ -353,7 +362,8 @@ const MODULE_RENDERERS = {
   food: (entry) => renderFoodModule(entry),
   exercise: (entry) => renderExerciseModule(entry),
   mood: (entry) => renderMoodModule(entry),
-  tiredness: (entry) => renderTirednessModule(entry)
+  tiredness: (entry) => renderTirednessModule(entry),
+  notes: (entry) => renderNotesModule(entry)
 };
 
 let currentRegistoDate = todayKey();
@@ -402,7 +412,7 @@ function renderHistory() {
 }
 
 function renderHistWeek() {
-  const days = getLastNDates(7);
+  const days = getLastNDates(8).filter(d => d.key !== todayKey()).slice(-7);
   const entries = getEntries();
   const titleEl = document.getElementById('hist-week-title');
   let bars = '', labels = '';
@@ -465,8 +475,9 @@ function renderHistMonth() {
   for (let i = 0; i < firstWeekday; i++) html += '<div class="cal-day empty"></div>';
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const entry = entries[key];
-    const todayClass = key === todayStr ? ' today-outline' : '';
+    const isToday = key === todayStr;
+    const entry = isToday ? null : entries[key]; // dia de hoje ainda não terminou: não mostra dados
+    const todayClass = isToday ? ' today-outline' : '';
 
     if (currentCategory === 'exercicio') {
       const has = entry && entry.exercises && entry.exercises.length > 0;
@@ -488,7 +499,7 @@ function renderHistMonth() {
 }
 
 function renderHistRecords() {
-  const days = getLastNDates(7).slice().reverse();
+  const days = getLastNDates(8).filter(d => d.key !== todayKey()).slice(-7).reverse();
   const entries = getEntries();
   const rows = [];
 
@@ -713,6 +724,97 @@ function renderWeightHistory() {
 }
 
 /* ============================================================
+   Backup: guarda/restaura todos os dados da app num ficheiro
+   ============================================================ */
+function isBackupWeeklyEnabled() { return loadJSON(STORAGE.backupWeekly, false); }
+function getLastBackupAt() { return loadJSON(STORAGE.backupLastAt, null); }
+
+function buildBackupPayload() {
+  return {
+    app: 'Foca',
+    appVersion: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      entries: getEntries(),
+      habits: getHabits(),
+      habitLog: getHabitLog(),
+      todos: getTodos(),
+      order: getOrder(),
+      profile: getProfile(),
+      weights: getWeights(),
+      insights: getInsights()
+    }
+  };
+}
+
+function doBackupNow(silent) {
+  const payload = buildBackupPayload();
+  const text = JSON.stringify(payload, null, 2);
+  const filename = 'Foca_data.de.backup';
+
+  const finish = () => {
+    saveJSON(STORAGE.backupLastAt, new Date().toISOString());
+    renderBackupPanel();
+    if (!silent) showToast('Backup feito');
+  };
+
+  try {
+    const file = new File([text], filename, { type: 'application/json' });
+    if (!silent && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: 'Backup Foca' }).catch(() => {});
+      finish();
+      return;
+    }
+  } catch (e) { /* partilha de ficheiros não suportada — cai para o download normal */ }
+
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  finish();
+}
+
+function formatBackupTimestamp(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()} às ${hh}:${mi}`;
+}
+
+function renderBackupPanel() {
+  const toggle = document.getElementById('backup-weekly-toggle');
+  if (!toggle) return;
+  toggle.classList.toggle('on', isBackupWeeklyEnabled());
+  const lastAt = getLastBackupAt();
+  document.getElementById('backup-last-info').textContent = lastAt
+    ? `Último backup: ${formatBackupTimestamp(lastAt)}`
+    : 'Ainda não foi feito nenhum backup.';
+}
+
+function maybeRunWeeklyBackup() {
+  if (!isBackupWeeklyEnabled()) return;
+  const lastAt = getLastBackupAt();
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  if (!lastAt || (Date.now() - new Date(lastAt).getTime()) >= weekMs) {
+    doBackupNow(true);
+  }
+}
+
+document.getElementById('backup-now-btn').addEventListener('click', () => doBackupNow(false));
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="toggle-backup-weekly"]');
+  if (!btn) return;
+  saveJSON(STORAGE.backupWeekly, !isBackupWeeklyEnabled());
+  renderBackupPanel();
+});
+
+/* ============================================================
    Insights: exportar dados em bruto para ficheiro (Fase 3)
    ============================================================ */
 function buildDataExport(rangeDays, dataTypes) {
@@ -887,6 +989,8 @@ document.addEventListener('click', (e) => {
   const sub = chip.dataset.sub;
   document.getElementById('sub-modulos').style.display = sub === 'modulos' ? 'block' : 'none';
   document.getElementById('sub-perfil').style.display = sub === 'perfil' ? 'block' : 'none';
+  document.getElementById('sub-backup').style.display = sub === 'backup' ? 'block' : 'none';
+  if (sub === 'backup') renderBackupPanel();
 });
 
 // ---- Perfil: nome, altura, notas ----
@@ -1050,6 +1154,11 @@ document.getElementById('registo-modules').addEventListener('change', (e) => {
     entry[field] = e.target.value;
     saveEntry(today, entry);
     renderRegisto();
+  } else if (field === 'notes') {
+    const today = currentRegistoDate;
+    const entry = getEntry(today);
+    entry.notes = e.target.value;
+    saveEntry(today, entry);
   }
 });
 
@@ -1168,6 +1277,7 @@ function migrateFixOrphanSleepQuality() {
 
 window.addEventListener('DOMContentLoaded', () => {
   migrateFixOrphanSleepQuality();
+  maybeRunWeeklyBackup();
   renderRegisto();
   renderVersionTag();
 
