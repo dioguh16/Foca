@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 
 const STORAGE = {
   entries: 'tracker_entries',
@@ -1147,7 +1147,27 @@ function renderVersionTag() {
   el.textContent = 'v' + APP_VERSION;
 }
 
+/* ------------------------------------------------------------
+   Migração pontual (v1.7.1): corrige registos de sono já
+   apagados antes da correção do bug de eliminação — dias sem
+   sleepStart/sleepEnd mas que ficaram com sleepQuality guardada
+   continuavam a colorir a vista de mês. Corre uma vez ao abrir.
+   ------------------------------------------------------------ */
+function migrateFixOrphanSleepQuality() {
+  const entries = getEntries();
+  let changed = false;
+  Object.keys(entries).forEach(date => {
+    const entry = entries[date];
+    if (entry && !entry.sleepStart && !entry.sleepEnd && entry.sleepQuality) {
+      entry.sleepQuality = '';
+      changed = true;
+    }
+  });
+  if (changed) saveJSON(STORAGE.entries, entries);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  migrateFixOrphanSleepQuality();
   renderRegisto();
   renderVersionTag();
 
