@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.11.0';
 
 const STORAGE = {
   entries: 'tracker_entries',
@@ -60,7 +60,7 @@ let currentView = 'week';
 let monthOffset = 0;           // 0 = mês atual, -1 = mês anterior, etc.
 let insightRange = 7;          // dias, para o pedido de insight
 const DATA_TYPE_LABELS = { sono:'Sono', alimentacao:'Alimentação', exercicio:'Exercício', mood:'Mood', cansaco:'Cansaço', peso:'Peso', habitos:'Hábitos', todos:"To Do's" };
-const CAT_LABELS = { sono: 'Sono', mood: 'Mood', cansaco: 'Cansaço', exercicio: 'Exercício' };
+const CAT_LABELS = { sono: 'Sono', mood: 'Mood', cansaco: 'Cansaço', exercicio: 'Exercício', geral: 'Geral' };
 const WEEKDAY_LETTER = ['D','S','T','Q','Q','S','S'];
 
 /* ---------------- storage helpers ---------------- */
@@ -406,7 +406,21 @@ document.getElementById('registo-day-next').addEventListener('click', () => {
    RENDER: Histórico (Fase 2)
    ============================================================ */
 function renderHistory() {
+  const isGeral = currentCategory === 'geral';
+  document.getElementById('hist-view-toggle').style.display = isGeral ? 'none' : '';
+  document.getElementById('hist-records-card').style.display = isGeral ? 'none' : '';
+  document.getElementById('hist-subtitle').textContent = isGeral ? 'Vista mensal' : (currentView === 'week' ? 'Vista semanal' : 'Vista mensal');
+
+  if (isGeral) {
+    document.getElementById('hist-week-view').style.display = 'none';
+    document.getElementById('hist-month-view').style.display = 'block';
+    renderHistMonth();
+    return;
+  }
+
   document.getElementById('hist-records-title').textContent = 'Registos recentes · ' + CAT_LABELS[currentCategory];
+  document.getElementById('hist-week-view').style.display = currentView === 'week' ? 'block' : 'none';
+  document.getElementById('hist-month-view').style.display = currentView === 'month' ? 'block' : 'none';
   if (currentView === 'week') renderHistWeek(); else renderHistMonth();
   renderHistRecords();
 }
@@ -482,6 +496,11 @@ function renderHistMonth() {
     if (currentCategory === 'exercicio') {
       const has = entry && entry.exercises && entry.exercises.length > 0;
       html += `<div class="cal-day${todayClass}">${d}${has ? '<span class="ex-dot"></span>' : ''}</div>`;
+    } else if (currentCategory === 'geral') {
+      const hasData = !!(entry && (entry.sleepStart || entry.mood || typeof entry.tiredness === 'number' ||
+        (entry.exercises && entry.exercises.length) || (entry.meals && entry.meals.length) || (entry.notes && entry.notes.trim())));
+      const clickable = !isToday ? ' cal-day-tap' : '';
+      html += `<div class="cal-day${todayClass}${clickable}" data-date="${key}">${d}${hasData ? '<span class="ex-dot"></span>' : ''}</div>`;
     } else {
       let color = null;
       if (currentCategory === 'sono' && entry && entry.sleepQuality) color = QUALITY_COLORS[entry.sleepQuality];
@@ -1207,6 +1226,53 @@ function addTodo() {
   showToast('To-do adicionado');
 }
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
+
+/* ---------------- Geral: resumo completo de um dia ---------------- */
+function buildDayOverviewHTML(date) {
+  const entry = getEntries()[date] || {};
+  const habits = getHabits();
+  const log = getHabitLog()[date] || {};
+  const lines = [];
+
+  if (entry.sleepStart && entry.sleepEnd) {
+    lines.push(`<p><strong>Sono:</strong> ${entry.sleepStart} → ${entry.sleepEnd} (${sleepDuration(entry.sleepStart, entry.sleepEnd)})${entry.sleepQuality ? ' · ' + (QUALITY_LABELS[entry.sleepQuality]||'') : ''}</p>`);
+  }
+  if (entry.meals && entry.meals.length) {
+    const meals = entry.meals.map(m => `${escapeHtml(m.time||'--:--')} — ${escapeHtml(m.text)}`).join('<br>');
+    lines.push(`<p><strong>Alimentação:</strong><br>${meals}</p>`);
+  }
+  if (entry.exercises && entry.exercises.length) {
+    const ex = entry.exercises.map(e => `${escapeHtml(e.name)} · ${escapeHtml(e.value)} ${e.unit==='min'?'min':'vezes'}`).join('<br>');
+    lines.push(`<p><strong>Exercício:</strong><br>${ex}</p>`);
+  }
+  if (entry.mood) lines.push(`<p><strong>Mood:</strong> ${MOOD_LABELS[entry.mood]||entry.mood}</p>`);
+  if (typeof entry.tiredness === 'number') lines.push(`<p><strong>Cansaço:</strong> nível ${entry.tiredness}</p>`);
+
+  const doneHabits = habits.filter(h => log[h.id]);
+  if (doneHabits.length) {
+    lines.push(`<p><strong>Hábitos concluídos:</strong><br>${doneHabits.map(h => escapeHtml(h.name)).join('<br>')}</p>`);
+  }
+  if (entry.notes && entry.notes.trim()) {
+    lines.push(`<p><strong>Notas:</strong><br>${escapeHtml(entry.notes).replace(/\n/g,'<br>')}</p>`);
+  }
+
+  return lines.length ? lines.join('') : `<p class="empty-note">Sem registos neste dia.</p>`;
+}
+
+document.getElementById('cal-grid').addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal-day-tap');
+  if (!cell) return;
+  const date = cell.dataset.date;
+  document.getElementById('day-overview-title').textContent = formatShortDatePT(date);
+  document.getElementById('day-overview-body').innerHTML = buildDayOverviewHTML(date);
+  document.getElementById('day-overview-modal').classList.add('show');
+});
+document.getElementById('day-overview-close').addEventListener('click', () => {
+  document.getElementById('day-overview-modal').classList.remove('show');
+});
+document.getElementById('day-overview-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'day-overview-modal') e.target.classList.remove('show');
+});
 
 // Histórico: chips de categoria
 document.getElementById('hist-chips').addEventListener('click', (e) => {

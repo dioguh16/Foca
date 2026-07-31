@@ -323,6 +323,8 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 .cal-day.empty{visibility:hidden;}
 .cal-day .ex-dot{position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--accent);}
 .cal-day.today-outline{box-shadow:inset 0 0 0 2px var(--ink);}
+.cal-day-tap{cursor:pointer;}
+.cal-day-tap:active{opacity:.6;}
 
 /* --- histórico: registos --- */
 .log-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:12.5px;gap:8px;}

@@ -1,6 +1,6 @@
 // Lembrete: subir este número sempre que o código mudar (ver regra de
 // versionamento no topo de app.js), para forçar o refresh da cache.
-const CACHE_NAME = 'tracker-v20';
+const CACHE_NAME = 'tracker-v21';
 const ASSETS = [
   './',
   './index.html',

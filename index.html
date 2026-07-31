@@ -84,6 +84,7 @@
         <div class="chip" data-cat="mood">Mood</div>
         <div class="chip" data-cat="cansaco">Cansaço</div>
         <div class="chip" data-cat="exercicio">Exercício</div>
+        <div class="chip" data-cat="geral">Geral</div>
       </div>
 
       <div id="hist-week-view">
@@ -108,7 +109,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="hist-records-card">
         <h3 id="hist-records-title">Registos recentes</h3>
         <div id="hist-records"></div>
         <p class="field-note">Toca num registo para o editar.</p>
@@ -144,6 +145,17 @@
         <button class="btn-danger" id="confirm-delete-cancel" style="background:var(--surface);color:var(--ink);">Cancelar</button>
         <button class="btn-danger" id="confirm-delete-confirm">Apagar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL: Geral — tudo o que foi registado num dia ===================== -->
+  <div class="modal-overlay" id="day-overview-modal">
+    <div class="modal-sheet">
+      <div class="modal-head">
+        <h3 id="day-overview-title">Dia</h3>
+        <button class="gear-btn" id="day-overview-close">✕</button>
+      </div>
+      <div class="modal-body" id="day-overview-body"></div>
     </div>
   </div>
 
