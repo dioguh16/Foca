@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 const STORAGE = {
   entries: 'tracker_entries',
@@ -262,9 +262,9 @@ function renderTodosModule() {
 function renderSleepModule(entry) {
   const chips = ['ma','ok','boa'].map(q => {
     const active = entry.sleepQuality === q;
-    const style = active
+    const style = `--cat-color:${QUALITY_COLORS[q]};` + (active
       ? `background:${QUALITY_COLORS[q]};border-color:${QUALITY_COLORS[q]};color:#fff;`
-      : `border-color:${QUALITY_COLORS[q]};color:${QUALITY_COLORS[q]};`;
+      : `border-color:${QUALITY_COLORS[q]};color:${QUALITY_COLORS[q]};`);
     return `<div class="chip ${active?'active':''}" style="${style}" data-action="set-quality" data-value="${q}">${QUALITY_LABELS[q]}</div>`;
   }).join('');
 
@@ -292,9 +292,9 @@ function renderFoodModule(entry) {
   return `<div class="card drag-card" data-module="food">
     <div class="card-head"><h3>Alimentação</h3><span class="pill">${meals.length} refeições</span></div>
     ${rows}
-    <div class="row" style="gap:8px;margin-top:${meals.length?'10px':'0'};">
-      <input class="text-input" type="time" id="meal-time-input" style="flex:0 0 90px;margin-bottom:0;">
-      <input class="text-input" id="meal-text-input" placeholder="O que comeste?" style="flex:1;margin-bottom:0;">
+    <div style="margin-top:${meals.length?'10px':'0'};">
+      <input class="text-input" type="time" id="meal-time-input" style="width:120px;">
+      <textarea class="text-input" id="meal-text-input" placeholder="O que comeste?" rows="2" style="margin-bottom:0;"></textarea>
     </div>
     <button class="btn-add" data-action="add-meal">+ Adicionar refeição</button>
   </div>`;
@@ -326,7 +326,7 @@ function renderExerciseModule(entry) {
 function renderMoodModule(entry) {
   const tiers = MOOD_TIERS.map(t => {
     const active = entry.mood === t;
-    const style = active ? `background:${MOOD_COLORS[t]};border-color:${MOOD_COLORS[t]};` : `border-color:${MOOD_COLORS[t]};color:${MOOD_COLORS[t]};`;
+    const style = `--cat-color:${MOOD_COLORS[t]};` + (active ? `background:${MOOD_COLORS[t]};border-color:${MOOD_COLORS[t]};` : `border-color:${MOOD_COLORS[t]};color:${MOOD_COLORS[t]};`);
     return `<div class="tier ${active?'active':''}" style="${style}" data-action="set-mood" data-value="${t}">${MOOD_LABELS[t]}</div>`;
   }).join('');
   return `<div class="card drag-card" data-module="mood">
@@ -338,7 +338,7 @@ function renderMoodModule(entry) {
 function renderTirednessModule(entry) {
   const dots = [0,1,2,3,4,5].map(n => {
     const active = entry.tiredness === n;
-    const style = active ? `background:${TIRED_COLORS[n]};border-color:${TIRED_COLORS[n]};` : `border-color:${TIRED_COLORS[n]};color:${TIRED_COLORS[n]};`;
+    const style = `--cat-color:${TIRED_COLORS[n]};` + (active ? `background:${TIRED_COLORS[n]};border-color:${TIRED_COLORS[n]};` : `border-color:${TIRED_COLORS[n]};color:${TIRED_COLORS[n]};`);
     return `<div class="scale-dot ${active?'active':''}" style="${style}" data-action="set-tired" data-value="${n}">${n}</div>`;
   }).join('');
   return `<div class="card drag-card" data-module="tiredness">
