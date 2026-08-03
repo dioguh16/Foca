@@ -419,117 +419,142 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 }
 
 /* ============================================================
-   REGISTO — visual de "folha de caderno"
-   Aplicado só ao ecrã #screen-registo, a pedido do utilizador.
+   REGISTO — barra de To Do's fixa + seletor de dia partilhado
+   ============================================================ */
+#registo-body{display:flex;flex-direction:column;flex:1;min-height:0;}
+
+.todo-bar{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--line);z-index:5;}
+.todo-bar-head{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  border:none;background:none;padding:calc(env(safe-area-inset-top) + 12px) 20px 12px;
+  font-family:inherit;cursor:pointer;
+}
+.todo-bar-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink);}
+.tri{width:0;height:0;display:none;
+  border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid;}
+.tri-red{border-bottom-color:#d1554a;}
+.tri-yellow{border-bottom-color:#dfc24a;}
+.tri.show{display:inline-block;}
+.todo-bar-chevron{color:var(--ink-soft);font-size:14px;transition:transform .25s ease;}
+.todo-bar.open .todo-bar-chevron{transform:rotate(180deg);}
+.todo-bar-body{max-height:0;overflow:hidden;transition:max-height .28s ease;padding:0 20px;}
+.todo-bar.open .todo-bar-body{max-height:320px;padding:0 20px 14px;overflow-y:auto;}
+.todo-bar .todo-item{gap:8px;}
+.todo-bar .del-btn{width:24px;height:24px;flex-shrink:0;border-radius:7px;border:1px solid var(--line);background:var(--surface);color:#c25a4f;font-size:14px;}
+
+#registo-daynav{border-bottom:1px solid var(--line);padding:12px 20px;flex-shrink:0;}
+#registo-daynav .day-nav{display:flex;align-items:center;justify-content:center;gap:12px;}
+#registo-daynav .day-nav p{
+  font-family:'Caveat',cursive;font-weight:700;font-size:24px;line-height:1;color:var(--ink);margin:0;
+}
+#registo-daynav .day-nav-btn{background:var(--surface-2);}
+#registo-past-banner{margin:10px 20px 0;}
+
+.topic-tabs{
+  flex-shrink:0;display:flex;gap:6px;padding:10px 14px 0;
+  background:var(--surface);border-bottom:1px solid var(--line);overflow-x:auto;
+  scrollbar-width:none;
+}
+.topic-tabs::-webkit-scrollbar{display:none;}
+.topic-tab{
+  flex-shrink:0;border:none;background:var(--surface-2);color:var(--ink-soft);
+  font-family:'Patrick Hand',cursive;font-size:15px;font-weight:400;
+  padding:7px 14px 9px;border-radius:10px 10px 0 0;cursor:pointer;
+  position:relative;top:1px;transition:background .15s ease,color .15s ease;
+}
+.topic-tab.active{background:var(--tab-c);color:#fff;}
+
+.pages-scroll{
+  flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+}
+
+/* ============================================================
+   TOPIC-PAGE — visual de "folha de caderno", uma cor própria
+   por assunto (definida inline via --paper/--rule/--cat no HTML)
    Ver comentário equivalente no topo de app.js.
    ============================================================ */
-#screen-registo{
-  --paper:#fbf7ea;
-  --rule:#c3d6e8;
-  --margin:#e2a3a3;
+.topic-page{
   --note-ink:#2b3a67;
   --note-ink-soft:#5a6690;
   --note-pencil:#8c8a7e;
-  --note-highlight:#ffe98a;
-  position:relative;
+  flex:0 0 100%;scroll-snap-align:start;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;position:relative;
   background:var(--paper);
 }
-#screen-registo::before{ /* linha vermelha da margem */
+.topic-page::before{ /* linha da margem, na cor do assunto */
   content:'';
   position:absolute; left:38px; top:0; bottom:0; width:1.5px;
-  background:var(--margin); opacity:.65; z-index:0; pointer-events:none;
+  background:var(--cat); opacity:.5; z-index:0; pointer-events:none;
 }
-#screen-registo::after{ /* canto da página dobrado */
+.topic-page::after{ /* canto da página dobrado */
   content:'';
   position:absolute; top:0; right:0; z-index:2; pointer-events:none;
-  width:0; height:0; border-style:solid; border-width:0 22px 22px 0;
-  border-color:transparent #efe8d2 transparent transparent;
-  filter:drop-shadow(-1px 1px 2px rgba(0,0,0,.12));
+  width:0; height:0; border-style:solid; border-width:0 20px 20px 0;
+  border-color:transparent rgba(0,0,0,.06) transparent transparent;
 }
-#screen-registo .topbar{
-  background:transparent;
-  border-bottom:none;
-  padding-left:48px;
-  position:relative; z-index:1;
-}
-#screen-registo .content{
+.topic-page > div{
   background:repeating-linear-gradient(to bottom, transparent 0 29px, var(--rule) 29px 30.5px);
-  padding-left:48px;
-  position:relative; z-index:1;
+  padding:18px 20px calc(env(safe-area-inset-bottom) + 100px) 48px;
+  position:relative; z-index:1; min-height:100%;
 }
 
-/* eyebrow "registo" e cabeçalhos das secções, em manuscrito */
-#screen-registo .topbar h1{
-  font-family:'Patrick Hand',cursive;
-  font-size:13px; font-weight:400; letter-spacing:.4px;
-  color:var(--note-pencil); text-transform:lowercase;
-  text-decoration:underline wavy var(--note-pencil) 1.5px; text-underline-offset:4px;
+.topic-page .card h3, .topic-page .card-head h3{
+  font-family:'Caveat',cursive; font-weight:700; font-size:22px; color:var(--cat);
 }
-#screen-registo .day-nav{display:flex;align-items:center;gap:10px;}
-#screen-registo .day-nav p{
-  font-family:'Caveat',cursive; font-weight:700; font-size:30px; line-height:1;
-  color:var(--note-ink); margin:4px 0 0; position:relative;
-}
-#screen-registo .day-nav-btn{
-  background:none; color:var(--note-ink-soft); font-family:'Patrick Hand',cursive;
-  font-size:20px; width:auto; height:auto; border-radius:0;
-}
-#screen-registo .card h3, #screen-registo .card-head h3{
-  font-family:'Caveat',cursive; font-weight:700; font-size:22px; color:var(--note-ink);
-}
-#screen-registo .card{
+.topic-page .card{
   background:transparent; border-radius:0; padding:0 0 4px; margin-bottom:22px;
 }
-#screen-registo .pill{
+.topic-page .pill{
   background:none; border:none; color:var(--note-pencil);
   font-family:'Patrick Hand',cursive; font-size:13px; padding:0;
 }
 
 /* texto corrido: sono/refeições/exercício/itens, tudo à mão */
-#screen-registo,
-#screen-registo .text-input,
-#screen-registo .meal-text, #screen-registo .meal-tag,
-#screen-registo .exercise-entry span,
-#screen-registo .item-text, #screen-registo .streak,
-#screen-registo .empty-note, #screen-registo .toggle-opt,
-#screen-registo .sleep-total, #screen-registo .sleep-arrow{
+.topic-page,
+.topic-page .text-input,
+.topic-page .meal-text, .topic-page .meal-tag,
+.topic-page .exercise-entry span,
+.topic-page .item-text, .topic-page .streak,
+.topic-page .empty-note, .topic-page .toggle-opt,
+.topic-page .sleep-total, .topic-page .sleep-arrow{
   font-family:'Patrick Hand',cursive;
 }
 
 /* inputs: linha para escrever, sem caixa */
-#screen-registo .text-input, #screen-registo .time-input{
+.topic-page .text-input, .topic-page .time-input{
   background:transparent; border:none; border-bottom:1.5px dotted var(--note-pencil);
   border-radius:0; padding:6px 2px; font-size:16px; color:var(--note-ink);
 }
-#screen-registo .text-input::placeholder{ color:var(--note-pencil); font-style:italic; opacity:.8; }
-#screen-registo .sleep-total{ color:var(--note-pencil); font-size:14px; }
+.topic-page .text-input::placeholder{ color:var(--note-pencil); font-style:italic; opacity:.8; }
+.topic-page .sleep-total{ background:var(--cat); }
 
 /* botão "+" tracejado, como uma anotação por fazer */
-#screen-registo .btn-add{
+.topic-page .btn-add{
   background:none; border:none; text-align:left; padding:8px 2px 0;
   font-family:'Patrick Hand',cursive; font-size:15px; color:var(--note-ink-soft);
 }
 
 /* linhas de refeição/exercício sem separadores — já há pauta a separar */
-#screen-registo .meal-entry, #screen-registo .exercise-entry{
+.topic-page .meal-entry, .topic-page .exercise-entry{
   border-bottom:none; padding:5px 0; font-size:16px; color:var(--note-ink-soft);
 }
-#screen-registo .meal-tag{ color:var(--note-pencil); font-weight:400; }
-#screen-registo .meal-del, #screen-registo .exercise-entry .meal-del{
+.topic-page .meal-tag{ color:var(--note-pencil); font-weight:400; }
+.topic-page .meal-del, .topic-page .exercise-entry .meal-del{
   color:var(--note-pencil); font-family:'Patrick Hand',cursive; font-size:16px;
 }
 
 /* qualidade do sono / mood: palavra circundada à mão em vez de chip colorido */
-#screen-registo .chip, #screen-registo .tier{
+.topic-page .chip, .topic-page .tier{
   background:transparent !important; border:none !important;
   color:var(--note-ink-soft) !important; font-family:'Patrick Hand',cursive;
   font-size:15px; font-weight:400; border-radius:0; padding:5px 9px;
   position:relative;
 }
-#screen-registo .chip.active, #screen-registo .tier.active{
+.topic-page .chip.active, .topic-page .tier.active{
   color:var(--cat-color, var(--note-ink)) !important;
 }
-#screen-registo .chip.active::before, #screen-registo .tier.active::before{
+.topic-page .chip.active::before, .topic-page .tier.active::before{
   content:''; position:absolute; left:-4px; right:-4px; top:-4px; bottom:-4px;
   border:2px solid var(--cat-color, var(--note-ink));
   border-radius:52% 48% 55% 45% / 60% 55% 45% 50%;
@@ -537,48 +562,48 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 }
 
 /* cansaço: mesma lógica, círculo à mão à volta do número escolhido */
-#screen-registo .scale-dot{
+.topic-page .scale-dot{
   background:transparent !important; border:none !important;
   color:var(--note-ink-soft) !important; font-family:'Patrick Hand',cursive;
   font-size:15px; font-weight:400; border-radius:0; position:relative;
 }
-#screen-registo .scale-dot.active{ color:var(--cat-color, var(--note-ink)) !important; }
-#screen-registo .scale-dot.active::before{
+.topic-page .scale-dot.active{ color:var(--cat-color, var(--note-ink)) !important; }
+.topic-page .scale-dot.active::before{
   content:''; position:absolute; inset:-3px;
   border:2px solid var(--cat-color, var(--note-ink)); border-radius:50%; transform:rotate(-3deg);
 }
-#screen-registo .scale-caption{ font-family:'Patrick Hand',cursive; color:var(--note-pencil); }
+.topic-page .scale-caption{ font-family:'Patrick Hand',cursive; color:var(--note-pencil); }
 
 /* seletor minutos/vezes do exercício: sublinhado em vez de segmento cheio */
-#screen-registo .toggle{ background:none; border:none; gap:12px; }
-#screen-registo .toggle-opt{
+.topic-page .toggle{ background:none; border:none; gap:12px; }
+.topic-page .toggle-opt{
   padding:6px 0; color:var(--note-pencil); font-size:14px;
 }
-#screen-registo .toggle-opt.active{
+.topic-page .toggle-opt.active{
   background:none; color:var(--note-ink);
   text-decoration:underline solid var(--note-ink) 2px; text-underline-offset:4px;
 }
 
 /* hábitos de hoje: caixinha desenhada à mão, com o visto a "escrever-se" */
-#screen-registo .habit-item{
+.topic-page .habit-item{
   border-bottom:none; padding:9px 0; font-size:16px; color:var(--note-ink);
 }
-#screen-registo .streak{ color:var(--note-pencil); font-weight:400; }
-#screen-registo .habit-item.done .item-text{
+.topic-page .streak{ color:var(--note-pencil); font-weight:400; }
+.topic-page .habit-item.done .item-text{
   color:var(--note-pencil); text-decoration:line-through wavy var(--note-pencil) 1.5px;
 }
-#screen-registo .check-btn{
+.topic-page .check-btn{
   width:22px; height:22px; border-radius:4px;
   border:2px solid var(--note-ink-soft); background:transparent;
   transform:rotate(-1.5deg);
 }
-#screen-registo .check-btn::before{ display:none; } /* sem preenchimento circular */
-#screen-registo .check-btn .check-mark{
+.topic-page .check-btn::before{ display:none; } /* sem preenchimento circular */
+.topic-page .check-btn .check-mark{
   font-family:'Patrick Hand',cursive; font-size:15px; color:var(--note-ink);
   transform:scale(.4) rotate(-16deg);
 }
-#screen-registo .check-btn.checked{ border-color:var(--note-ink); }
-#screen-registo .check-btn.checked .check-mark{ transform:scale(1.15) rotate(-4deg); }
+.topic-page .check-btn.checked{ border-color:var(--note-ink); }
+.topic-page .check-btn.checked .check-mark{ transform:scale(1.15) rotate(-4deg); }
 
 /* --- interruptor ligar/desligar (backup semanal) --- */
 .switch{

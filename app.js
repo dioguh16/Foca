@@ -13,14 +13,22 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 
+/* ------------------------------------------------------------
+   FASE 1 (v1.13.0) — nova estrutura em páginas dedicadas:
+   o Registo deixou de ser uma lista única de módulos e passou a
+   ser 5 páginas (Hábitos, Sono, Alimentação, Exercício, Mood &
+   Cansaço) com scroll lateral, mais uma barra de To Do's fixa e
+   colapsável no topo. Hábitos (gestão) e Insights mudaram-se
+   para Definições. O módulo "Notas" genérico deixou de existir.
+   ------------------------------------------------------------ */
 const STORAGE = {
   entries: 'tracker_entries',
   habits: 'tracker_habits',
   habitLog: 'tracker_habitlog',
   todos: 'tracker_todos',
-  order: 'tracker_order',
+  pageOrder: 'tracker_page_order',
   profile: 'tracker_profile',
   weights: 'tracker_weights',
   insights: 'tracker_insights',
@@ -34,10 +42,21 @@ const DEFAULT_HABITS = [
   { id: 'h3', name: 'Beber 1.5L de água' },
   { id: 'h4', name: 'Escovar os dentes (noite)' }
 ];
-const DEFAULT_ORDER = ['habits', 'todos', 'sleep', 'food', 'exercise', 'mood', 'tiredness', 'notes'];
-const MODULE_LABELS = {
-  habits: 'Hábitos', todos: "To Do's", sleep: 'Sono', food: 'Alimentação',
-  exercise: 'Exercício', mood: 'Mood', tiredness: 'Nível de cansaço', notes: 'Notas'
+const PAGE_KEYS = ['habitos', 'sono', 'alimentacao', 'exercicio', 'mood'];
+const PAGE_LABELS = {
+  habitos: 'Hábitos', sono: 'Sono', alimentacao: 'Alimentação',
+  exercicio: 'Exercício', mood: 'Mood & Cansaço'
+};
+const PAGE_COLORS = {
+  habitos: '#c98a3e', sono: '#4f6f9e', alimentacao: '#c2664f',
+  exercicio: '#3f8f5f', mood: '#8a5fa0'
+};
+const PAGE_PAPER = {
+  habitos: { paper: '#f7f2e6', rule: '#e6d9bb' },
+  sono: { paper: '#eef2f7', rule: '#d3e0ee' },
+  alimentacao: { paper: '#f9efe3', rule: '#efd9c2' },
+  exercicio: { paper: '#eef7ef', rule: '#d6ecda' },
+  mood: { paper: '#f5eef8', rule: '#e6d7ee' }
 };
 
 const QUALITY_COLORS = { ma: '#d1554a', ok: '#dfc24a', boa: '#3f8f5f' };
@@ -84,12 +103,14 @@ function saveJSON(key, val) {
 
 function getHabits() { return loadJSON(STORAGE.habits, DEFAULT_HABITS); }
 function getTodos() { return loadJSON(STORAGE.todos, []); }
-function getOrder() {
-  const o = loadJSON(STORAGE.order, DEFAULT_ORDER);
-  // garante que módulos novos introduzidos em atualizações futuras aparecem mesmo que não estejam gravados ainda
-  DEFAULT_ORDER.forEach(k => { if (!o.includes(k)) o.push(k); });
+function getPageOrder() {
+  let o = loadJSON(STORAGE.pageOrder, PAGE_KEYS);
+  // limpa chaves antigas/obsoletas e garante que páginas novas aparecem mesmo que não estejam gravadas ainda
+  o = o.filter(k => PAGE_KEYS.includes(k));
+  PAGE_KEYS.forEach(k => { if (!o.includes(k)) o.push(k); });
   return o;
 }
+function savePageOrder(o) { saveJSON(STORAGE.pageOrder, o); }
 function getHabitLog() { return loadJSON(STORAGE.habitLog, {}); }
 function getEntries() { return loadJSON(STORAGE.entries, {}); }
 function getProfile() { return loadJSON(STORAGE.profile, { name: '', sex: '', height: '', notes: '' }); }
@@ -348,25 +369,28 @@ function renderTirednessModule(entry) {
   </div>`;
 }
 
-function renderNotesModule(entry) {
-  return `<div class="card drag-card" data-module="notes">
-    <div class="card-head"><h3>Notas</h3></div>
-    <textarea class="text-input" id="notes-input" data-field="notes" placeholder="Escreve aqui o que quiseres sobre o teu dia...">${escapeHtml(entry.notes || '')}</textarea>
-  </div>`;
-}
-
-const MODULE_RENDERERS = {
-  habits: () => renderHabitsModule(),
-  todos: () => renderTodosModule(),
-  sleep: (entry) => renderSleepModule(entry),
-  food: (entry) => renderFoodModule(entry),
-  exercise: (entry) => renderExerciseModule(entry),
-  mood: (entry) => renderMoodModule(entry),
-  tiredness: (entry) => renderTirednessModule(entry),
-  notes: (entry) => renderNotesModule(entry)
+const PAGE_RENDERERS = {
+  habitos: () => renderHabitsModule(),
+  sono: (entry) => renderSleepModule(entry),
+  alimentacao: (entry) => renderFoodModule(entry),
+  exercicio: (entry) => renderExerciseModule(entry),
+  mood: (entry) => renderMoodModule(entry) + renderTirednessModule(entry)
 };
 
 let currentRegistoDate = todayKey();
+
+/* reordena os elementos das páginas/separadores no DOM segundo getPageOrder() */
+function applyPageOrderToDOM() {
+  const order = getPageOrder();
+  const tabsEl = document.getElementById('topicTabs');
+  const scrollEl = document.getElementById('pagesScroll');
+  order.forEach(key => {
+    const tab = tabsEl.querySelector(`.topic-tab[data-page="${key}"]`);
+    const page = scrollEl.querySelector(`.topic-page[data-page="${key}"]`);
+    if (tab) tabsEl.appendChild(tab);
+    if (page) scrollEl.appendChild(page);
+  });
+}
 
 function renderRegisto() {
   const isToday = currentRegistoDate === todayKey();
@@ -376,10 +400,13 @@ function renderRegisto() {
     : formatDatePT(dateObj);
   document.getElementById('registo-day-next').disabled = isToday;
 
-  const order = getOrder();
+  applyPageOrderToDOM();
+
   const entry = getEntry(currentRegistoDate);
-  const modulesEl = document.getElementById('registo-modules');
-  modulesEl.innerHTML = order.map(key => MODULE_RENDERERS[key] ? MODULE_RENDERERS[key](entry) : '').join('');
+  PAGE_KEYS.forEach(key => {
+    const el = document.getElementById('page-content-' + key);
+    if (el) el.innerHTML = PAGE_RENDERERS[key](entry);
+  });
 
   const bannerId = 'registo-past-banner';
   document.getElementById(bannerId)?.remove();
@@ -388,8 +415,11 @@ function renderRegisto() {
     banner.id = bannerId;
     banner.className = 'past-day-banner';
     banner.textContent = 'A editar um dia passado — as alterações ficam guardadas nesse dia.';
-    modulesEl.parentElement.insertBefore(banner, modulesEl);
+    const dayNav = document.getElementById('registo-daynav');
+    dayNav.parentElement.insertBefore(banner, dayNav.nextSibling);
   }
+
+  renderTodoBar();
 }
 
 document.getElementById('registo-day-prev').addEventListener('click', () => {
@@ -401,6 +431,29 @@ document.getElementById('registo-day-next').addEventListener('click', () => {
   currentRegistoDate = shiftDateKey(currentRegistoDate, 1);
   renderRegisto();
 });
+
+/* ============================================================
+   RENDER: barra fixa de To Do's
+   ============================================================ */
+function renderTodoBar() {
+  const listEl = document.getElementById('todoBarList');
+  if (!listEl) return;
+  const today = todayKey();
+  const todos = getTodos().filter(t => !t.done).sort((a, b) => a.date.localeCompare(b.date));
+
+  listEl.innerHTML = todos.length ? todos.map(t => {
+    const isToday = t.date === today;
+    const isPast = t.date < today;
+    const laterClass = (!isToday && !isPast) ? 'due-later' : '';
+    const label = isToday ? 'Hoje' : (isPast ? 'Atrasado' : formatShortDatePT(t.date));
+    return `<div class="todo-item ${laterClass}">
+      <button class="check-btn" data-action="toggle-todo" data-id="${t.id}"><span class="check-mark">✓</span></button>
+      <span class="item-text">${escapeHtml(t.text)}</span>
+      <span class="todo-date">${label}</span>
+      <button class="del-btn" data-action="del-todo" data-id="${t.id}">×</button>
+    </div>`;
+  }).join('') : `<p class="empty-note">Sem to-do's pendentes.</p>`;
+}
 
 /* ============================================================
    RENDER: Histórico (Fase 2)
@@ -692,24 +745,15 @@ function renderHabitsEditList() {
     </div>`).join('') : `<p class="empty-note">Ainda não tens hábitos.</p>`;
 }
 
-function renderTodosEditList() {
-  const todos = getTodos().slice().sort((a,b) => a.date.localeCompare(b.date));
-  document.getElementById('todos-edit-list').innerHTML = todos.length ? todos.map(t => `
-    <div class="settings-item">
-      <span class="item-label" style="${t.done?'text-decoration:line-through;color:var(--ink-soft);':''}">${escapeHtml(t.text)}</span>
-      <span class="pill" style="font-size:10px;">${formatShortDatePT(t.date)}</span>
-      <button class="del-btn" data-action="del-todo" data-id="${t.id}">×</button>
-    </div>`).join('') : `<p class="empty-note">Ainda não tens to-do's.</p>`;
-}
-
 /* ============================================================
    RENDER: Definições — ordem dos módulos
    ============================================================ */
 function renderModuleOrderList() {
-  const order = getOrder();
+  const order = getPageOrder();
   document.getElementById('module-order-list').innerHTML = order.map((key, i) => `
     <div class="settings-item">
-      <span class="item-label">${MODULE_LABELS[key] || key}</span>
+      <span class="tag-dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${PAGE_COLORS[key]};margin-right:2px;"></span>
+      <span class="item-label">${PAGE_LABELS[key] || key}</span>
       <div class="order-arrows">
         <button data-action="move-up" data-key="${key}" ${i===0?'disabled':''}>▲</button>
         <button data-action="move-down" data-key="${key}" ${i===order.length-1?'disabled':''}>▼</button>
@@ -758,7 +802,7 @@ function buildBackupPayload() {
       habits: getHabits(),
       habitLog: getHabitLog(),
       todos: getTodos(),
-      order: getOrder(),
+      pageOrder: getPageOrder(),
       profile: getProfile(),
       weights: getWeights(),
       insights: getInsights()
@@ -929,9 +973,40 @@ function goToScreen(id) {
 
   if (id === 'screen-registo') { currentRegistoDate = todayKey(); renderRegisto(); }
   if (id === 'screen-historico') renderHistory();
-  if (id === 'screen-habitos') { renderHabitsEditList(); renderTodosEditList(); }
-  if (id === 'screen-settings') { renderModuleOrderList(); renderProfile(); }
+  if (id === 'screen-settings') { renderModuleOrderList(); renderProfile(); renderHabitsEditList(); }
 }
+
+/* ---------------- barra de To Do's: colapsar/expandir ---------------- */
+document.getElementById('todoBarToggle').addEventListener('click', () => {
+  document.getElementById('todoBar').classList.toggle('open');
+});
+
+/* ---------------- separadores + scroll lateral entre as 5 páginas ---------------- */
+(function setupTopicPages() {
+  const pagesScroll = document.getElementById('pagesScroll');
+  let scrollTimeout;
+
+  function setActiveTabByIndex(i) {
+    document.querySelectorAll('.topic-tab').forEach((t, idx) => t.classList.toggle('active', idx === i));
+  }
+
+  document.getElementById('topicTabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('.topic-tab');
+    if (!tab) return;
+    const tabs = Array.from(document.querySelectorAll('.topic-tab'));
+    const i = tabs.indexOf(tab);
+    pagesScroll.scrollTo({ left: i * pagesScroll.clientWidth, behavior: 'smooth' });
+    setActiveTabByIndex(i);
+  });
+
+  pagesScroll.addEventListener('scroll', () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      const i = Math.round(pagesScroll.scrollLeft / pagesScroll.clientWidth);
+      setActiveTabByIndex(i);
+    }, 80);
+  });
+})();
 
 /* ---------------- swipe lateral entre menus ---------------- */
 (function setupSwipeNav() {
@@ -945,7 +1020,8 @@ function goToScreen(id) {
   }
 
   shell.addEventListener('touchstart', (e) => {
-    if (anyModalOpen() || e.touches.length !== 1) { tracking = false; return; }
+    // dentro do scroll lateral das páginas de assunto, deixa o scroll nativo tratar do gesto
+    if (anyModalOpen() || e.touches.length !== 1 || e.target.closest('#pagesScroll')) { tracking = false; return; }
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     tracking = true;
@@ -988,28 +1064,17 @@ document.addEventListener('click', (e) => {
   if (gotoBtn) { goToScreen(gotoBtn.dataset.goto); return; }
 });
 
-// chips de sub-navegação (Hábitos/To Do's dentro do separador; reutilizável)
-document.addEventListener('click', (e) => {
-  const chip = e.target.closest('#screen-habitos .chip[data-sub]');
-  if (!chip) return;
-  document.querySelectorAll('#screen-habitos .chip').forEach(c => c.classList.remove('active'));
-  chip.classList.add('active');
-  const sub = chip.dataset.sub;
-  document.getElementById('sub-habitos').style.display = sub === 'habitos' ? 'block' : 'none';
-  document.getElementById('sub-todos').style.display = sub === 'todos' ? 'block' : 'none';
-});
-
-// chips de sub-navegação das Definições (Módulos/Perfil)
+// chips de sub-navegação das Definições (Módulos/Hábitos/Insights/Perfil/Backup)
+const SETTINGS_SUBS = ['modulos', 'habitos', 'insights', 'perfil', 'backup'];
 document.addEventListener('click', (e) => {
   const chip = e.target.closest('#screen-settings .chip[data-sub]');
   if (!chip) return;
   document.querySelectorAll('#screen-settings .chip[data-sub]').forEach(c => c.classList.remove('active'));
   chip.classList.add('active');
   const sub = chip.dataset.sub;
-  document.getElementById('sub-modulos').style.display = sub === 'modulos' ? 'block' : 'none';
-  document.getElementById('sub-perfil').style.display = sub === 'perfil' ? 'block' : 'none';
-  document.getElementById('sub-backup').style.display = sub === 'backup' ? 'block' : 'none';
+  SETTINGS_SUBS.forEach(id => { document.getElementById('sub-' + id).style.display = (id === sub) ? 'block' : 'none'; });
   if (sub === 'backup') renderBackupPanel();
+  if (sub === 'habitos') renderHabitsEditList();
 });
 
 // ---- Perfil: nome, altura, notas ----
@@ -1065,13 +1130,20 @@ document.getElementById('insight-range-chips').addEventListener('click', (e) => 
 // ---- Insights: gerar ficheiro para exportar ----
 document.getElementById('generate-file-btn').addEventListener('click', exportDataFile);
 
-// ações dentro do Registo (delegação)
-document.getElementById('registo-modules').addEventListener('click', (e) => {
+// ações dentro do Registo (delegação) — cobre a barra de To Do's e as 5 páginas
+document.getElementById('registo-body').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
   const today = currentRegistoDate; // dia dos módulos diários: hoje ou um dia passado navegado
   const habitDay = todayKey(); // hábitos/to-do's continuam sempre ligados ao dia real de hoje
+
+  if (action === 'del-todo') {
+    const todos = getTodos().filter(t => t.id !== btn.dataset.id);
+    saveJSON(STORAGE.todos, todos);
+    renderTodoBar();
+    return;
+  }
 
   if (action === 'toggle-unit') {
     exerciseUnitDraft = btn.dataset.unit;
@@ -1165,7 +1237,7 @@ document.getElementById('registo-modules').addEventListener('click', (e) => {
 });
 
 // hora de sono (input nativo type=time dispara 'change' ao escolher)
-document.getElementById('registo-modules').addEventListener('change', (e) => {
+document.getElementById('registo-body').addEventListener('change', (e) => {
   const field = e.target.dataset && e.target.dataset.field;
   if (field === 'sleepStart' || field === 'sleepEnd') {
     const today = currentRegistoDate;
@@ -1173,11 +1245,6 @@ document.getElementById('registo-modules').addEventListener('change', (e) => {
     entry[field] = e.target.value;
     saveEntry(today, entry);
     renderRegisto();
-  } else if (field === 'notes') {
-    const today = currentRegistoDate;
-    const entry = getEntry(today);
-    entry.notes = e.target.value;
-    saveEntry(today, entry);
   }
 });
 
@@ -1189,14 +1256,6 @@ document.getElementById('habits-edit-list').addEventListener('click', (e) => {
   saveJSON(STORAGE.habits, habits);
   renderHabitsEditList();
 });
-document.getElementById('todos-edit-list').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action="del-todo"]');
-  if (!btn) return;
-  const todos = getTodos().filter(t => t.id !== btn.dataset.id);
-  saveJSON(STORAGE.todos, todos);
-  renderTodosEditList();
-});
-
 function addHabit() {
   const input = document.getElementById('new-habit-input');
   const name = input.value.trim();
@@ -1222,7 +1281,7 @@ function addTodo() {
   saveJSON(STORAGE.todos, todos);
   textInput.value = '';
   dateInput.value = '';
-  renderTodosEditList();
+  renderTodoBar();
   showToast('To-do adicionado');
 }
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
@@ -1298,18 +1357,19 @@ document.getElementById('hist-view-toggle').addEventListener('click', () => {
 document.getElementById('month-prev').addEventListener('click', () => { monthOffset--; renderHistMonth(); });
 document.getElementById('month-next').addEventListener('click', () => { monthOffset = Math.min(0, monthOffset+1); renderHistMonth(); });
 
-// reordenar módulos (Definições)
+// reordenar páginas do Registo (Definições > Módulos)
 document.getElementById('module-order-list').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const order = getOrder();
+  const order = getPageOrder();
   const idx = order.indexOf(btn.dataset.key);
   const dir = btn.dataset.action === 'move-up' ? -1 : 1;
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= order.length) return;
   [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
-  saveJSON(STORAGE.order, order);
+  savePageOrder(order);
   renderModuleOrderList();
+  applyPageOrderToDOM();
 });
 
 /* ============================================================
