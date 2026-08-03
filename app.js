@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.13.1';
+const APP_VERSION = '1.16.0';
 
 /* ------------------------------------------------------------
    FASE 1 (v1.13.0) — nova estrutura em páginas dedicadas:
@@ -29,6 +29,7 @@ const STORAGE = {
   habitLog: 'tracker_habitlog',
   todos: 'tracker_todos',
   pageOrder: 'tracker_page_order',
+  foods: 'tracker_foods',
   profile: 'tracker_profile',
   weights: 'tracker_weights',
   insights: 'tracker_insights',
@@ -103,6 +104,53 @@ function saveJSON(key, val) {
 
 function getHabits() { return loadJSON(STORAGE.habits, DEFAULT_HABITS); }
 function getTodos() { return loadJSON(STORAGE.todos, []); }
+
+/* base de dados de comidas: começa por aprender com as refeições já escritas
+   e depois cresce sozinha (cada refeição nova entra automaticamente, se ainda
+   não lá estiver) ou à mão em Alimentação > base de dados */
+function seedFoodsFromHistory() {
+  const entries = getEntries();
+  const set = new Set();
+  Object.values(entries).forEach(e => (e.meals || []).forEach(m => {
+    if (m.text && m.text.trim()) set.add(m.text.trim());
+  }));
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt'));
+}
+function getFoods() {
+  const raw = localStorage.getItem(STORAGE.foods);
+  if (raw === null) {
+    const seeded = seedFoodsFromHistory();
+    saveJSON(STORAGE.foods, seeded);
+    return seeded;
+  }
+  try { return JSON.parse(raw); } catch (e) { return []; }
+}
+function saveFoods(foods) { saveJSON(STORAGE.foods, foods); }
+function addFoodToDb(text) {
+  const t = text.trim();
+  if (!t) return;
+  const foods = getFoods();
+  if (!foods.some(f => f.toLowerCase() === t.toLowerCase())) {
+    foods.push(t);
+    foods.sort((a, b) => a.localeCompare(b, 'pt'));
+    saveFoods(foods);
+  }
+}
+function getFoodSuggestions(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return getFoods()
+    .filter(f => f.toLowerCase().includes(q))
+    .slice(0, 6);
+}
+function renderFoodDbList() {
+  const foods = getFoods();
+  document.getElementById('food-db-list').innerHTML = foods.length ? foods.map(f => `
+    <div class="settings-item">
+      <span class="item-label">${escapeHtml(f)}</span>
+      <button class="del-btn" data-action="del-food" data-value="${escapeHtml(f)}">×</button>
+    </div>`).join('') : `<p class="empty-note">Ainda não tens comidas guardadas — vão sendo sugeridas à medida que escreves refeições, ou adiciona aqui.</p>`;
+}
 function getPageOrder() {
   let o = loadJSON(STORAGE.pageOrder, PAGE_KEYS);
   // limpa chaves antigas/obsoletas e garante que páginas novas aparecem mesmo que não estejam gravadas ainda
@@ -298,6 +346,7 @@ function renderSleepModule(entry) {
       <span class="sleep-total">${sleepDuration(entry.sleepStart, entry.sleepEnd)}</span>
     </div>
     <div class="chip-row" style="margin-top:10px;margin-bottom:0;">${chips}</div>
+    <textarea class="text-input" data-field="sleepNotes" placeholder="Notas (ex: acordei 2x, calor à noite...)" style="margin-top:12px;margin-bottom:0;">${escapeHtml(entry.sleepNotes || '')}</textarea>
   </div>`;
 }
 
@@ -315,9 +364,13 @@ function renderFoodModule(entry) {
     ${rows}
     <div style="margin-top:${meals.length?'10px':'0'};">
       <input class="text-input" type="time" id="meal-time-input" style="width:120px;">
-      <textarea class="text-input" id="meal-text-input" placeholder="O que comeste?" rows="2" style="margin-bottom:0;"></textarea>
+      <div class="food-input-wrap">
+        <textarea class="text-input" id="meal-text-input" placeholder="O que comeste?" rows="3" style="margin-bottom:0;min-height:64px;" autocomplete="off"></textarea>
+        <div class="food-suggest" id="food-suggest"></div>
+      </div>
     </div>
     <button class="btn-add" data-action="add-meal">+ Adicionar refeição</button>
+    <button class="food-db-btn" data-action="open-food-db">🗂️ ver/editar base de dados de comidas</button>
   </div>`;
 }
 
@@ -439,9 +492,10 @@ function renderTodoBar() {
   const listEl = document.getElementById('todoBarList');
   if (!listEl) return;
   const today = todayKey();
-  const todos = getTodos().filter(t => !t.done).sort((a, b) => a.date.localeCompare(b.date));
+  const tomorrow = shiftDateKey(today, 1);
+  const pending = getTodos().filter(t => !t.done).sort((a, b) => a.date.localeCompare(b.date));
 
-  listEl.innerHTML = todos.length ? todos.map(t => {
+  listEl.innerHTML = pending.length ? pending.map(t => {
     const isToday = t.date === today;
     const isPast = t.date < today;
     const laterClass = (!isToday && !isPast) ? 'due-later' : '';
@@ -453,6 +507,12 @@ function renderTodoBar() {
       <button class="del-btn" data-action="del-todo" data-id="${t.id}">×</button>
     </div>`;
   }).join('') : `<p class="empty-note">Sem to-do's pendentes.</p>`;
+
+  // triângulo vermelho: há to-do's para hoje (ou atrasados); amarelo: há to-do's para amanhã
+  const hasToday = pending.some(t => t.date <= today);
+  const hasTomorrow = pending.some(t => t.date === tomorrow);
+  document.getElementById('triRed').classList.toggle('show', hasToday);
+  document.getElementById('triYellow').classList.toggle('show', hasTomorrow);
 }
 
 /* ============================================================
@@ -698,6 +758,8 @@ document.getElementById('edit-modal-body').addEventListener('change', (e) => {
   if (field === 'sleepStart' || field === 'sleepEnd') {
     editDraftEntry[field] = e.target.value;
     renderEditModalBody();
+  } else if (field === 'sleepNotes') {
+    editDraftEntry.sleepNotes = e.target.value;
   }
 });
 
@@ -803,6 +865,7 @@ function buildBackupPayload() {
       habitLog: getHabitLog(),
       todos: getTodos(),
       pageOrder: getPageOrder(),
+      foods: getFoods(),
       profile: getProfile(),
       weights: getWeights(),
       insights: getInsights()
@@ -896,7 +959,7 @@ function buildDataExport(rangeDays, dataTypes) {
     const dayLines = [];
 
     if (dataTypes.includes('sono') && entry && entry.sleepStart && entry.sleepEnd) {
-      dayLines.push(`Sono: ${entry.sleepStart} → ${entry.sleepEnd} (${sleepDuration(entry.sleepStart, entry.sleepEnd)}) · Qualidade: ${QUALITY_LABELS[entry.sleepQuality]||'--'}`);
+      dayLines.push(`Sono: ${entry.sleepStart} → ${entry.sleepEnd} (${sleepDuration(entry.sleepStart, entry.sleepEnd)}) · Qualidade: ${QUALITY_LABELS[entry.sleepQuality]||'--'}${entry.sleepNotes ? ' · Notas: ' + entry.sleepNotes : ''}`);
     }
     if (dataTypes.includes('alimentacao') && entry && entry.meals && entry.meals.length) {
       entry.meals.forEach(m => dayLines.push(`Refeição ${m.time}: ${m.text}`));
@@ -979,6 +1042,41 @@ function goToScreen(id) {
 /* ---------------- barra de To Do's: colapsar/expandir ---------------- */
 document.getElementById('todoBarToggle').addEventListener('click', () => {
   document.getElementById('todoBar').classList.toggle('open');
+});
+
+/* ---------------- alimentação: autocomplete ao escrever ---------------- */
+document.getElementById('registo-body').addEventListener('input', (e) => {
+  if (e.target.id !== 'meal-text-input') return;
+  const box = document.getElementById('food-suggest');
+  const matches = getFoodSuggestions(e.target.value);
+  box.innerHTML = matches.map(m => `<div data-action="pick-food-suggestion" data-text="${escapeHtml(m)}">${escapeHtml(m)}</div>`).join('');
+  box.classList.toggle('show', matches.length > 0);
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.food-input-wrap')) {
+    document.getElementById('food-suggest')?.classList.remove('show');
+  }
+});
+
+/* ---------------- alimentação: modal da base de dados de comidas ---------------- */
+document.getElementById('food-db-modal-close').addEventListener('click', () => {
+  document.getElementById('food-db-modal').classList.remove('show');
+});
+document.getElementById('food-db-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'food-db-modal') document.getElementById('food-db-modal').classList.remove('show');
+});
+document.getElementById('food-db-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action="del-food"]');
+  if (!btn) return;
+  saveFoods(getFoods().filter(f => f !== btn.dataset.value));
+  renderFoodDbList();
+});
+document.getElementById('add-food-btn').addEventListener('click', () => {
+  const input = document.getElementById('new-food-input');
+  if (!input.value.trim()) return;
+  addFoodToDb(input.value);
+  input.value = '';
+  renderFoodDbList();
 });
 
 /* ---------------- separadores + swipe lateral entre as 5 páginas ----------------
@@ -1191,7 +1289,21 @@ document.getElementById('registo-body').addEventListener('click', (e) => {
     entry.meals = entry.meals || [];
     entry.meals.push({ time: timeInput.value || '--:--', text: textInput.value.trim() });
     saveEntry(today, entry);
+    addFoodToDb(textInput.value.trim());
     renderRegisto();
+    return;
+  }
+
+  if (action === 'open-food-db') {
+    renderFoodDbList();
+    document.getElementById('food-db-modal').classList.add('show');
+    return;
+  }
+
+  if (action === 'pick-food-suggestion') {
+    const textInput = document.getElementById('meal-text-input');
+    textInput.value = btn.dataset.text;
+    document.getElementById('food-suggest').classList.remove('show');
     return;
   }
 
@@ -1217,7 +1329,7 @@ document.getElementById('registo-body').addEventListener('click', (e) => {
   }
 });
 
-// hora de sono (input nativo type=time dispara 'change' ao escolher)
+// hora de sono (input nativo type=time dispara 'change' ao escolher) + notas do sono
 document.getElementById('registo-body').addEventListener('change', (e) => {
   const field = e.target.dataset && e.target.dataset.field;
   if (field === 'sleepStart' || field === 'sleepEnd') {
@@ -1226,6 +1338,11 @@ document.getElementById('registo-body').addEventListener('change', (e) => {
     entry[field] = e.target.value;
     saveEntry(today, entry);
     renderRegisto();
+  } else if (field === 'sleepNotes') {
+    const today = currentRegistoDate;
+    const entry = getEntry(today);
+    entry.sleepNotes = e.target.value;
+    saveEntry(today, entry);
   }
 });
 
