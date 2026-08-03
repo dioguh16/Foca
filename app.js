@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 
 /* ------------------------------------------------------------
    FASE 1 (v1.13.0) — nova estrutura em páginas dedicadas:
@@ -981,78 +981,59 @@ document.getElementById('todoBarToggle').addEventListener('click', () => {
   document.getElementById('todoBar').classList.toggle('open');
 });
 
-/* ---------------- separadores + scroll lateral entre as 5 páginas ---------------- */
+/* ---------------- separadores + swipe lateral entre as 5 páginas ----------------
+   Gesto discreto: seja qual for a força/velocidade do swipe, avança ou recua
+   sempre exatamente UMA página. Não há scroll nativo aqui (o browser nunca
+   arrasta isto sozinho), por isso não há como "saltar" várias páginas de uma vez. */
 (function setupTopicPages() {
   const pagesScroll = document.getElementById('pagesScroll');
-  let scrollTimeout;
+  const THRESHOLD = 40;
+  let startX = 0, startY = 0, tracking = false, decided = null;
 
-  function setActiveTabByIndex(i) {
-    document.querySelectorAll('.topic-tab').forEach((t, idx) => t.classList.toggle('active', idx === i));
+  function getTabs() { return Array.from(document.querySelectorAll('.topic-tab')); }
+  function getActiveIndex(tabs) {
+    const i = tabs.findIndex(t => t.classList.contains('active'));
+    return i === -1 ? 0 : i;
+  }
+  function goToPageIndex(i) {
+    const tabs = getTabs();
+    const clamped = Math.max(0, Math.min(tabs.length - 1, i));
+    pagesScroll.scrollTo({ left: clamped * pagesScroll.clientWidth, behavior: 'smooth' });
+    tabs.forEach((t, idx) => t.classList.toggle('active', idx === clamped));
   }
 
   document.getElementById('topicTabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.topic-tab');
     if (!tab) return;
-    const tabs = Array.from(document.querySelectorAll('.topic-tab'));
-    const i = tabs.indexOf(tab);
-    pagesScroll.scrollTo({ left: i * pagesScroll.clientWidth, behavior: 'smooth' });
-    setActiveTabByIndex(i);
+    goToPageIndex(getTabs().indexOf(tab));
   });
 
-  pagesScroll.addEventListener('scroll', () => {
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-      const i = Math.round(pagesScroll.scrollLeft / pagesScroll.clientWidth);
-      setActiveTabByIndex(i);
-    }, 80);
-  });
-})();
-
-/* ---------------- swipe lateral entre menus ---------------- */
-(function setupSwipeNav() {
-  const shell = document.querySelector('.app-shell');
-  const navOrder = Array.from(document.querySelectorAll('.navbar .navbtn')).map(b => b.dataset.goto);
-  let startX = 0, startY = 0, tracking = false, decided = null;
-  const THRESHOLD = 55;
-
-  function anyModalOpen() {
-    return document.querySelector('.modal-overlay.show') !== null;
-  }
-
-  shell.addEventListener('touchstart', (e) => {
-    // dentro do scroll lateral das páginas de assunto, deixa o scroll nativo tratar do gesto
-    if (anyModalOpen() || e.touches.length !== 1 || e.target.closest('#pagesScroll')) { tracking = false; return; }
+  pagesScroll.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { tracking = false; return; }
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
     tracking = true;
     decided = null;
   }, { passive: true });
 
-  shell.addEventListener('touchmove', (e) => {
+  pagesScroll.addEventListener('touchmove', (e) => {
     if (!tracking || e.touches.length !== 1) return;
     const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
-    if (decided === null && (Math.abs(dx) > 12 || Math.abs(dy) > 12)) {
+    if (decided === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
       decided = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
     }
-    if (decided === 'horizontal') e.preventDefault();
+    if (decided === 'horizontal') e.preventDefault(); // bloqueia o scroll nativo — só decidimos nós
   }, { passive: false });
 
-  shell.addEventListener('touchend', (e) => {
+  pagesScroll.addEventListener('touchend', (e) => {
     if (!tracking) return;
     tracking = false;
     if (decided !== 'horizontal') return;
     const dx = e.changedTouches[0].clientX - startX;
-    if (Math.abs(dx) < THRESHOLD) return;
-
-    const currentId = document.querySelector('.screen.active').id;
-    const idx = navOrder.indexOf(currentId);
-    if (idx === -1) return;
-
-    // arrastar para a esquerda -> avança; para a direita -> recua
-    const nextIdx = dx < 0 ? idx + 1 : idx - 1;
-    if (nextIdx < 0 || nextIdx >= navOrder.length) return;
-    goToScreen(navOrder[nextIdx]);
+    if (Math.abs(dx) < THRESHOLD) return; // gesto pequeno demais — ignora
+    const current = getActiveIndex(getTabs());
+    goToPageIndex(dx < 0 ? current + 1 : current - 1); // sempre ±1, nunca mais
   });
 })();
 

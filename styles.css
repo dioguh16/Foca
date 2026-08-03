@@ -465,8 +465,7 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
 .topic-tab.active{background:var(--tab-c);color:#fff;}
 
 .pages-scroll{
-  flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;
-  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  flex:1;min-height:0;display:flex;overflow:hidden;
 }
 
 /* ============================================================
@@ -478,7 +477,7 @@ textarea.text-input{resize:vertical;min-height:80px;line-height:1.4;}
   --note-ink:#2b3a67;
   --note-ink-soft:#5a6690;
   --note-pencil:#8c8a7e;
-  flex:0 0 100%;scroll-snap-align:start;overflow-y:auto;
+  flex:0 0 100%;overflow-y:auto;
   -webkit-overflow-scrolling:touch;position:relative;
   background:var(--paper);
 }
