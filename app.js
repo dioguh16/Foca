@@ -13,7 +13,7 @@
    - A pasta entregue ao utilizador com os ficheiros da app deve
      ter sempre o nome "Foca vX.X" (com este mesmo número).
    ------------------------------------------------------------ */
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.16.1';
 
 /* ------------------------------------------------------------
    FASE 1 (v1.13.0) — nova estrutura em páginas dedicadas:
